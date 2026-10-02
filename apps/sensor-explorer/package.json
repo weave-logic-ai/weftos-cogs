@@ -2,7 +2,7 @@
   "name": "sensor-explorer",
   "version": "0.1.0",
   "private": true,
-  "description": "WeftOS Sensor Explorer — browsable, contributable hardware catalog with an MCP agent surface, on Cloudflare Workers + D1.",
+  "description": "WeftOS Sensor Explorer \u2014 browsable, contributable hardware catalog with an MCP agent surface, on Cloudflare Workers + D1.",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
@@ -13,7 +13,11 @@
     "seed:gen": "node scripts/gen-seed.mjs catalog.seed.json seed.sql",
     "db:seed": "wrangler d1 execute sensor-explorer --remote --file=./seed.sql",
     "db:seed:local": "wrangler d1 execute sensor-explorer --local --file=./seed.sql",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate:pool": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0002_pool.sql",
+    "pool:seed:gen": "node scripts/gen-pool-seed.mjs pool.seed.json pool-seed.sql",
+    "db:pool": "wrangler d1 execute sensor-explorer --remote --file=./pool-seed.sql",
+    "db:pool:local": "wrangler d1 execute sensor-explorer --local --file=./pool-seed.sql"
   },
   "dependencies": {
     "hono": "^4.6.0"

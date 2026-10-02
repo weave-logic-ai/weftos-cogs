@@ -154,6 +154,24 @@ app.get("/api/catalog.json", async (c) => {
   return c.json(cat);
 });
 
+// Imported parts pool (bulk LCSC/JLCPCB + distributor). Separate from the curated catalog.
+app.get("/api/pool/search", async (c) => {
+  const q = (c.req.query("q") || "").toLowerCase();
+  const cat = c.req.query("category");
+  const limit = Math.min(Math.max(1, Number(c.req.query("limit")) || 30), 200);
+  let sql = "SELECT mpn,manufacturer,name,category,price,datasheet FROM pool WHERE search LIKE ?";
+  const binds: any[] = [`%${q}%`];
+  if (cat) { sql += " AND category=?"; binds.push(cat); }
+  sql += " ORDER BY manufacturer,mpn LIMIT ?"; binds.push(limit);
+  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
+  return c.json({ count: results.length, results });
+});
+app.get("/api/pool/stats", async (c) => {
+  const total = (await c.env.DB.prepare("SELECT COUNT(*) n FROM pool").first<{ n: number }>())?.n ?? 0;
+  const byCat = (await c.env.DB.prepare("SELECT category,COUNT(*) n FROM pool GROUP BY category ORDER BY n DESC LIMIT 30").all()).results;
+  return c.json({ total, by_category: byCat });
+});
+
 app.get("/healthz", (c) => c.json({ ok: true }));
 
 // ---- rich tree-browse UI ----

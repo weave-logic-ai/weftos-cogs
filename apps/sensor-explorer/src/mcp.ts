@@ -43,6 +43,24 @@ const TOOLS = [
     inputSchema: { type: "object", properties: { need: { type: "string" } }, required: ["need"] },
   },
   {
+    name: "search_pool",
+    description: "Search the large imported PARTS POOL (the bulk LCSC/JLCPCB + distributor catalog, ~thousands of parts) by keyword. Use this to find candidate parts that aren't yet in the curated catalog; then promote_from_pool to bring one in.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "keywords — MPN, manufacturer, category, what it senses" },
+        category: { type: "string", description: "optional category filter (e.g. imu/motion, radar/presence, environmental)" },
+        limit: { type: "number", description: "max results (default 20, max 100)" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "promote_from_pool",
+    description: "Promote a pool part (by MPN) toward the curated catalog — lands as a pending contribution for review. Requires a contribute-scoped API key.",
+    inputSchema: { type: "object", properties: { mpn: { type: "string" } }, required: ["mpn"] },
+  },
+  {
     name: "add_part",
     description: "Propose a new part (or an update) for the catalog. Requires a contribute-scoped API key. Lands as a pending contribution for review.",
     inputSchema: {
@@ -97,6 +115,25 @@ async function callTool(name: string, args: any, env: Env, scope: Scope) {
     const scored = results.map((r: any) => ({ ...r, score: toks.filter((t) => JSON.stringify(r).toLowerCase().includes(t)).length }));
     scored.sort((a, b) => b.score - a.score);
     return text({ need: args.need, suggestions: scored.slice(0, 12) });
+  }
+  if (name === "search_pool") {
+    const limit = Math.min(Math.max(1, args.limit || 20), 100);
+    const like = `%${String(args.query || "").toLowerCase()}%`;
+    let sql = "SELECT mpn,manufacturer,name,category,price,datasheet FROM pool WHERE search LIKE ?";
+    const binds: any[] = [like];
+    if (args.category) { sql += " AND category=?"; binds.push(args.category); }
+    sql += " ORDER BY manufacturer,mpn LIMIT ?"; binds.push(limit);
+    const { results } = await DB.prepare(sql).bind(...binds).all();
+    return text({ count: results.length, results });
+  }
+  if (name === "promote_from_pool") {
+    if (scope !== "contribute" && scope !== "admin") return { ...text("promote_from_pool needs a contribute-scoped API key"), isError: true };
+    const row = await DB.prepare("SELECT data FROM pool WHERE mpn=?").bind(args.mpn).first<{ data: string }>();
+    if (!row) return { ...text(`no pool part with mpn '${args.mpn}'`), isError: true };
+    const part = JSON.parse(row.data);
+    await DB.prepare("INSERT INTO contributions (part_id,type,data,author,created,status) VALUES (?,?,?,?,?, 'pending')")
+      .bind(part.mpn, "chip", JSON.stringify(part), "mcp:promote", new Date().toISOString()).run();
+    return text({ ok: true, status: "pending", mpn: part.mpn, note: "Promoted from pool; pending review." });
   }
   if (name === "add_part") {
     if (scope !== "contribute" && scope !== "admin") return { ...text("add_part needs a contribute-scoped API key"), isError: true };

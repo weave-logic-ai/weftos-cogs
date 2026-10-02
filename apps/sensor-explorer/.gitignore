@@ -4,3 +4,5 @@ dist/
 seed.sql
 .dev.vars
 *.log
+pool-seed.sql
+pool.seed.json
