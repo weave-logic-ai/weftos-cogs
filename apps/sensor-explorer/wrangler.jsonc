@@ -1,0 +1,25 @@
+{
+  // WeftOS Sensor Explorer — Cloudflare Worker + D1 (+ R2 for datasheets/photos later).
+  // Deploy: wrangler d1 create sensor-explorer  ->  put the database_id below  ->
+  //         npm run db:migrate && npm run seed:gen && npm run db:seed && npm run deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sensor-explorer",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sensor-explorer",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+  // R2 for datasheet PDFs + module photos (phase 2). Create: wrangler r2 bucket create sensor-explorer-assets
+  // "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "sensor-explorer-assets" }],
+  "vars": {
+    "EXPLORER_NAME": "WeftOS Sensor Explorer"
+  }
+  // Secrets (set with `wrangler secret put`):
+  //   BOOTSTRAP_API_KEY  — a bearer key that always works (read+contribute) for first use.
+}
