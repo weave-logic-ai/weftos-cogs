@@ -758,12 +758,6 @@
           "price": "$17.59 USD",
           "url": "https://www.mouser.com/en/ProductDetail/Pimoroni/PIM472?qs=P1JMDcb91o7p2TYl00AP7g%3D%3D",
           "ships_from": "Mouser"
-        },
-        {
-          "vendor": "Mouser",
-          "price": "$4.00 USD",
-          "url": "https://www.mouser.com/en/ProductDetail/Bosch-Sensortec/BME280?qs=2OnyuXx6vpj2fK9HX7qb3g%3D%3D",
-          "ships_from": "Mouser"
         }
       ],
       "seen_in": [
@@ -2612,12 +2606,6 @@
           "vendor": "Mouser",
           "price": "$3.36 USD",
           "url": "https://www.mouser.com/en/ProductDetail/PUI-Audio/DMM-4026-B-I2S-R?qs=zhx2xqPtQQxBuLVw%2Fwt86Q%3D%3D",
-          "ships_from": "Mouser"
-        },
-        {
-          "vendor": "Mouser",
-          "price": "",
-          "url": "https://www.mouser.com/en/ProductDetail/TDK/INMP441?qs=A6eO%252BMLsxmQ7QOONrFN3Pg%3D%3D",
           "ships_from": "Mouser"
         }
       ],
@@ -4645,12 +4633,6 @@
           "vendor": "Mouser",
           "price": "$410.00 USD",
           "url": "https://www.mouser.com/en/ProductDetail/Raspberry-Pi/Raspberry-Pi-500%2b-PT-unit-only?qs=yc9RBI4tIAIXyMjzfnmVcw%3D%3D",
-          "ships_from": "Mouser"
-        },
-        {
-          "vendor": "Mouser",
-          "price": "$536.21 USD",
-          "url": "https://www.mouser.com/en/ProductDetail/EDATEC/ED-HMI3010-133CA-0832?qs=yc9RBI4tIAKqtxR52Sd3ZQ%3D%3D",
           "ships_from": "Mouser"
         }
       ],
@@ -6827,12 +6809,6 @@
           "price": "$5.19 USD",
           "url": "https://www.mouser.com/en/ProductDetail/Texas-Instruments/ADS1115IDGSR?qs=IK5e5L0zOXjKCJoVMhYO%2FQ%3D%3D",
           "ships_from": "Mouser"
-        },
-        {
-          "vendor": "Mouser",
-          "price": "$7.74 USD",
-          "url": "https://www.mouser.com/en/ProductDetail/Texas-Instruments/ADS1115QNKSRQ1?qs=ulEaXIWI0c%252B%252BH1ufhGRAvg%3D%3D",
-          "ships_from": "Mouser"
         }
       ]
     },
@@ -8477,7 +8453,15 @@
         "source": "QST QMC5883L datasheet"
       },
       "mouser_query": "QMC5883L",
-      "datasheet": ""
+      "datasheet": "",
+      "buy": [
+        {
+          "vendor": "Mouser",
+          "price": "$4.66 USD",
+          "url": "https://www.mouser.com/en/ProductDetail/Olimex-Ltd/MOD-QMC5883L?qs=9vOqFld9vZVvvZuY%2FZj%252B1g%3D%3D",
+          "ships_from": "Mouser"
+        }
+      ]
     },
     {
       "id": "qorvo-dw3000",
@@ -9134,7 +9118,15 @@
         "source": "u-blox M10 datasheet"
       },
       "mouser_query": "MAX-M10S",
-      "datasheet": "https://www.u-blox.com/en/product/m10-standard-precision-gnss"
+      "datasheet": "https://www.u-blox.com/en/product/m10-standard-precision-gnss",
+      "buy": [
+        {
+          "vendor": "Mouser",
+          "price": "$9.12 USD",
+          "url": "https://www.mouser.com/en/ProductDetail/u-blox/MAX-M10S-00B?qs=A6eO%252BMLsxmT0PfQYPb7LLQ%3D%3D",
+          "ships_from": "Mouser"
+        }
+      ]
     },
     {
       "id": "vl53l1x",
