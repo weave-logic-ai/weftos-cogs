@@ -24,6 +24,7 @@ const MAPS_TO = {
   "sound-detect": ["ky-038", "inmp441-mic"],
   "mentra-live": ["mentra-live-glasses", "mentra-live-display", "mentra-live-microphone"],
   "ld2450-radar": ["hlk-ld2450"],
+  "ld1040c-motion": ["hlk-ld1040c"],
   "ld6002-radar": ["hlk-ld6002", "hlk-ld6002b"],
   "sensor-ota-push": [],
   "bridge": [],

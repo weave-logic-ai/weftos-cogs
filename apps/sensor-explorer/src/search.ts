@@ -13,6 +13,10 @@ export interface Env {
   DB: D1Database;
   EXPLORER_NAME?: string;
   BOOTSTRAP_API_KEY?: string;
+  // Signed cog binaries. Bound once account-level R2 is enabled + the bucket exists (see
+  // wrangler.jsonc). Optional: while unbound, the download endpoint serves the inline
+  // `cog_artifacts.bytes` fallback instead.
+  ASSETS?: R2Bucket;
 }
 
 export function clampLimit(n: unknown, def: number, max: number): number {

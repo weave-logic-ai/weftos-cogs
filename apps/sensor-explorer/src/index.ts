@@ -153,6 +153,43 @@ app.get("/api/parts/:id", async (c) => {
 function cogRow(r: any) {
   return { ...r, hardware: safeJson(r.hardware), maps_to: safeJson(r.maps_to) };
 }
+
+// Canonical cog targets ⇄ COG-008 registry artifact keys. The download endpoint accepts either
+// spelling; stored rows and the public API use the canonical armv7/aarch64.
+const TARGET_ALIAS: Record<string, string> = { arm: "armv7", armv7: "armv7", aarch64: "aarch64", arm64: "aarch64" };
+const TARGET_REGKEY: Record<string, string> = { armv7: "arm", aarch64: "arm64" };
+
+function toHex(buf: ArrayBuffer): string {
+  const b = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, "0");
+  return s;
+}
+function shortHex(s: string, head = 8, tail = 8): string {
+  s = String(s || "");
+  return s.length <= head + tail + 1 ? s : s.slice(0, head) + "…" + s.slice(-tail);
+}
+function fmtBytes(n: number): string {
+  n = Number(n) || 0;
+  return n >= 1024 * 1024 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? (n / 1024).toFixed(0) + " KB" : n + " B";
+}
+
+// Public artifact list for a cog: one entry per built target, with a download URL + signed facts.
+async function artifactsFor(env: Env, cogId: string) {
+  const { results } = await env.DB.prepare(
+    "SELECT version,target,r2_key,size,sha256,sig,signer_pubkey FROM cog_artifacts WHERE cog_id=? ORDER BY target"
+  ).bind(cogId).all();
+  return (results as any[]).map((a) => ({
+    target: a.target,
+    version: a.version,
+    url: `/api/cogs/${encodeURIComponent(cogId)}/download?target=${a.target}`,
+    size: a.size,
+    sha256: a.sha256,
+    sig: a.sig,
+    signer_pubkey: a.signer_pubkey,
+    filename: String(a.r2_key).split("/").pop(),
+  }));
+}
 app.get("/api/cogs", async (c) => {
   const q = c.req.query("q");
   if (q) {
@@ -166,14 +203,124 @@ app.get("/api/cogs", async (c) => {
   return c.json({ count: cogs.length, cogs });
 });
 app.get("/api/cogs/:id", async (c) => {
-  const row = await c.env.DB.prepare("SELECT data FROM cogs WHERE id=?").bind(c.req.param("id")).first<{ data: string }>();
-  return row ? c.json(JSON.parse(row.data)) : c.json({ error: "not found" }, 404);
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare("SELECT data FROM cogs WHERE id=?").bind(id).first<{ data: string }>();
+  if (!row) return c.json({ error: "not found" }, 404);
+  const rec = JSON.parse(row.data);
+  const arts = await artifactsFor(c.env, id);
+  if (arts.length) rec.artifacts = arts;
+  return c.json(rec);
+});
+
+// Signed binary download. Streams from R2 when the ASSETS bucket is bound, else serves the inline
+// bytes fallback. The sha256 / Ed25519 sig / signer pubkey ride along in headers so the caller
+// (weft-cog-repo, the cogrepo cog) can verify before trusting the bytes.
+app.get("/api/cogs/:id/download", async (c) => {
+  const id = c.req.param("id");
+  const target = TARGET_ALIAS[(c.req.query("target") || "").toLowerCase()];
+  if (!target) return c.json({ error: "target required: armv7 | aarch64" }, 400);
+  const row = await c.env.DB.prepare(
+    "SELECT version,r2_key,size,sha256,sig,signer_pubkey FROM cog_artifacts WHERE cog_id=? AND target=? ORDER BY version DESC LIMIT 1"
+  ).bind(id, target).first<any>();
+  if (!row) return c.json({ error: "no artifact for this cog/target" }, 404);
+  const filename = String(row.r2_key).split("/").pop() || `cog-${id}-${target}`;
+  const headers: Record<string, string> = {
+    "content-type": "application/octet-stream",
+    "content-disposition": `attachment; filename="${filename}"`,
+    "x-cog-id": id,
+    "x-cog-target": target,
+    "x-cog-version": row.version,
+    "x-cog-size": String(row.size),
+    "x-cog-sha256": row.sha256,
+    "x-cog-sig": row.sig,
+    "x-cog-signer": row.signer_pubkey,
+    "cache-control": "public, max-age=3600",
+  };
+  // Prefer R2 when bound.
+  if (c.env.ASSETS) {
+    const obj = await c.env.ASSETS.get(row.r2_key);
+    if (obj) {
+      headers["etag"] = obj.httpEtag;
+      return new Response(obj.body, { headers });
+    }
+  }
+  // Fallback: inline bytes stored in D1 (used while R2 is unbound).
+  const blob = await c.env.DB.prepare(
+    "SELECT bytes FROM cog_artifacts WHERE cog_id=? AND target=? AND version=?"
+  ).bind(id, target, row.version).first<{ bytes: ArrayBuffer | Uint8Array | number[] | null }>();
+  if (!blob || !blob.bytes) return c.json({ error: "artifact bytes not uploaded yet" }, 404);
+  const b: any = blob.bytes;
+  const body: BodyInit = b instanceof ArrayBuffer || ArrayBuffer.isView(b) ? b : new Uint8Array(b);
+  return new Response(body, { headers });
+});
+
+// Upload the actual binary for a registered artifact row (admin). The body is re-hashed and
+// REFUSED unless the sha256 matches the row, so a truncated or wrong upload can never land.
+app.put("/api/cogs/:id/artifact", async (c) => {
+  const scope = await resolveScope(c.req.raw, c.env);
+  if (scope !== "admin") return c.json({ error: "admin scope required" }, 403);
+  const id = c.req.param("id");
+  const target = TARGET_ALIAS[(c.req.query("target") || "").toLowerCase()];
+  if (!target) return c.json({ error: "target required: armv7 | aarch64" }, 400);
+  const row = await c.env.DB.prepare(
+    "SELECT version,r2_key,sha256 FROM cog_artifacts WHERE cog_id=? AND target=? ORDER BY version DESC LIMIT 1"
+  ).bind(id, target).first<any>();
+  if (!row) return c.json({ error: "register the artifact row first (cog_artifacts)" }, 404);
+  const buf = await c.req.arrayBuffer();
+  const got = toHex(await crypto.subtle.digest("SHA-256", buf));
+  if (got !== row.sha256) return c.json({ error: "sha256 mismatch", expected: row.sha256, got, size: buf.byteLength }, 422);
+  if (c.env.ASSETS) await c.env.ASSETS.put(row.r2_key, buf);
+  await c.env.DB.prepare(
+    "UPDATE cog_artifacts SET bytes=?, size=? WHERE cog_id=? AND target=? AND version=?"
+  ).bind(c.env.ASSETS ? null : buf, buf.byteLength, id, target, row.version).run();
+  return c.json({ ok: true, cog_id: id, target, version: row.version, size: buf.byteLength, sha256: got, stored: c.env.ASSETS ? "r2" : "d1" });
+});
+
+// COG-008 signed registry, rebuilt from cog_artifacts + cog_versions so a WeaveLogic cog-source /
+// the on-device cogrepo cog can install from it (weft-cog-repo signed-install contract).
+app.get("/registry.json", async (c) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const arts = (await c.env.DB.prepare(
+    "SELECT a.cog_id,a.version,a.target,a.r2_key,a.size,a.sha256,a.sig,a.manifest_key " +
+    "FROM cog_artifacts a JOIN cog_versions v ON v.cog_id=a.cog_id AND v.version=a.version " +
+    "WHERE v.yanked=0 ORDER BY a.cog_id,a.target"
+  ).all()).results as any[];
+  if (!arts.length) return c.json({ schema: 1, repo: "weavelogic", updated: today, cogs: [] });
+  const ids = [...new Set(arts.map((a) => a.cog_id))];
+  const metaRows = (await c.env.DB.prepare(
+    `SELECT id,name,category,version,description,hardware FROM cogs WHERE id IN (${ids.map(() => "?").join(",")})`
+  ).bind(...ids).all()).results as any[];
+  const meta = new Map(metaRows.map((m) => [m.id, m]));
+  const cogs = ids.map((id) => {
+    const m: any = meta.get(id) || {};
+    const artifacts: any = {};
+    for (const a of arts.filter((x) => x.cog_id === id)) {
+      artifacts[TARGET_REGKEY[a.target] || a.target] = {
+        path: a.r2_key, size: a.size, sha256: a.sha256, sig: a.sig, manifest_path: a.manifest_key,
+      };
+    }
+    return {
+      id,
+      name: m.name,
+      version: m.version,
+      category: m.category,
+      description: m.description,
+      hardware_requirement: safeJson(m.hardware) || [],
+      artifacts,
+    };
+  });
+  return c.json({ schema: 1, repo: "weavelogic", updated: today, cogs });
 });
 
 // The cog (if any) and firmware (if any) that map to a given part id.
 async function cogsForPart(env: Env, partId: string) {
   const { results } = await env.DB.prepare("SELECT data FROM cogs WHERE maps_to LIKE ?").bind(`%"${partId}"%`).all();
-  return (results as any[]).map((r) => JSON.parse(r.data)).filter((c) => (c.maps_to || []).includes(partId));
+  const cogs = (results as any[]).map((r) => JSON.parse(r.data)).filter((c) => (c.maps_to || []).includes(partId));
+  for (const c of cogs) {
+    const arts = await artifactsFor(env, c.id);
+    if (arts.length) c.artifacts = arts;
+  }
+  return cogs;
 }
 async function firmwareForPart(env: Env, partId: string) {
   const { results } = await env.DB.prepare("SELECT data FROM firmware WHERE maps_to LIKE ?").bind(`%"${partId}"%`).all();
@@ -391,6 +538,13 @@ table.spec th{text-align:left;color:var(--grey);font-weight:600;padding:6px 12px
 table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft);color:var(--ink)}
 .links{margin:14px 0}.ext{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--wl);color:var(--wl-ink);border-radius:var(--r-pill);font-size:var(--fs-sm);font-weight:600}
 .ext:hover{text-decoration:none;background:color-mix(in srgb,var(--wl) 12%,transparent)}
+.dlgrid{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.ext.dl{background:var(--wl);color:#fff}.ext.dl:hover{background:color-mix(in srgb,var(--wl) 85%,#000)}
+.dlmeta{opacity:.85;font-weight:500;font-size:var(--fs-xs)}
+.sigfacts{margin:12px 0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:var(--fs-xs)}
+.sigfacts>div{display:contents}.sigfacts dt{color:var(--grey);text-transform:uppercase;font-size:10px;letter-spacing:.04em;align-self:center}
+.sigfacts dd{margin:0;color:var(--ink)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all}
 .buys{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
 .buy{display:inline-flex;gap:8px;align-items:center;background:var(--green);color:#fff;padding:8px 14px;border-radius:var(--r-pill);font-size:var(--fs-sm);font-weight:600}
 .buy:hover{text-decoration:none;opacity:.92}.buy .price{color:#fff;margin:0}
@@ -781,8 +935,27 @@ function openCogDetail(id){
   if(c.sensor_id)h+='<div class=xref><b>Reads</b><div class=xlinks><a class=xlink href="/part/'+encodeURIComponent(c.sensor_id)+'">'+esc(c.sensor_name)+' \\u2197</a></div></div>';
   if(maps.length)h+=xref('Works with these parts',maps,nameOf);
   else if(!c.sensor_id)h+='<div class=phint>No catalog part maps to this cog yet.</div>';
-  h+='<div class=note>Install on a Seed over MCP: <code>cog install '+esc(c.id)+'</code></div>';
+  h+=cogDownloadsHTML(c);
   document.getElementById('pbody').innerHTML=h;document.getElementById('pbody').scrollTop=0;document.getElementById('pclose').focus();
+}
+var TARGET_LABEL={armv7:'ARM \\u00b7 armv7 (Pi Zero 2 W, 32-bit)',aarch64:'ARM64 \\u00b7 aarch64 (Pi 5, 64-bit)'};
+function fmtBytes(n){n=Number(n)||0;return n>=1048576?(n/1048576).toFixed(1)+' MB':n>=1024?(n/1024).toFixed(0)+' KB':n+' B';}
+function shortHex(s,head,tail){s=String(s||'');head=head||8;tail=tail||8;return s.length<=head+tail+1?s:s.slice(0,head)+'\\u2026'+s.slice(-tail);}
+/* Real per-target download links + signed facts + the signed-install command. */
+function cogDownloadsHTML(c){
+  var arts=(c&&c.artifacts&&c.artifacts.length)?c.artifacts:null;
+  if(!arts)return '<div class=note>Install on a Seed over MCP: <code>cog install '+esc(c.id)+'</code></div>';
+  var signer=arts[0].signer_pubkey||'';
+  var h='<div class=dlgrid>';
+  for(var i=0;i<arts.length;i++){var a=arts[i];
+    h+='<a class="ext dl" href="'+esc(a.url)+'" download>\\u2193 '+esc(TARGET_LABEL[a.target]||a.target)+' <span class=dlmeta>'+esc(fmtBytes(a.size))+'</span></a>';}
+  h+='</div><dl class=sigfacts><div><dt>Version</dt><dd>v'+esc(arts[0].version)+'</dd></div>';
+  for(var j=0;j<arts.length;j++){var b=arts[j];
+    h+='<div><dt>'+esc(b.target)+' sha256</dt><dd class=mono>'+esc(b.sha256)+'</dd></div>';
+    h+='<div><dt>'+esc(b.target)+' sig</dt><dd class=mono>'+esc(shortHex(b.sig,16,16))+'</dd></div>';}
+  h+='<div><dt>Signed by</dt><dd class=mono title="'+esc(signer)+'">'+esc(shortHex(signer,12,8))+'</dd></div></dl>';
+  h+='<div class=note>Signed install on a Seed over MCP: <code>cog install '+esc(c.id)+'</code> \\u2014 verified against the WeaveLogic release key (<code>'+esc(shortHex(signer,12,8))+'</code>) via the signed registry at <code>/registry.json</code>.</div>';
+  return h;
 }
 function openPoolDetail(mpn){
   var p=POOL.byId[mpn];if(!p){return;}
@@ -1003,10 +1176,43 @@ function cogTab(cogs: any[]): string {
     if (c.binary) spec["Binary"] = c.binary;
     h += specTableSrv(spec);
     if (c.sensor_id) h += '<div class=cogreads><b>Reads</b> <a href="/part/' + encodeURIComponent(c.sensor_id) + '">' + esc(c.sensor_name) + '</a></div>';
-    h += '<div class=note>Install on a Seed over MCP: <code>cog install ' + esc(c.id) + '</code> (cog-dev / seed-mcp). The cog then serves its API on port ' + esc(c.bind_port || "?") + '.</div>';
+    h += cogDownloadsSrv(c);
     h += '</div>';
     return h;
   }).join("");
+}
+
+const TARGET_LABEL: Record<string, string> = {
+  armv7: "ARM · armv7 (Pi Zero 2 W, 32-bit)",
+  aarch64: "ARM64 · aarch64 (Pi 5, 64-bit)",
+};
+
+// Real per-target download links + signed facts + the signed-install command. Falls back to the
+// MCP install hint when no artifact is published for the cog yet.
+function cogDownloadsSrv(c: any): string {
+  const arts: any[] = Array.isArray(c.artifacts) ? c.artifacts : [];
+  if (!arts.length) {
+    return '<div class=note>Install on a Seed over MCP: <code>cog install ' + esc(c.id) +
+      '</code> (cog-dev / seed-mcp). The cog then serves its API on port ' + esc(c.bind_port || "?") + '.</div>';
+  }
+  const signer = arts[0].signer_pubkey || "";
+  let h = '<div class=dlgrid>';
+  for (const a of arts) {
+    h += '<a class="ext dl" href="' + esc(a.url) + '" download>↓ ' + esc(TARGET_LABEL[a.target] || a.target) +
+      ' <span class=dlmeta>' + esc(fmtBytes(a.size)) + '</span></a>';
+  }
+  h += '</div>';
+  h += '<dl class=sigfacts><div><dt>Version</dt><dd>v' + esc(arts[0].version) + '</dd></div>';
+  for (const a of arts) {
+    h += '<div><dt>' + esc(a.target) + ' sha256</dt><dd class=mono>' + esc(a.sha256) + '</dd></div>';
+    h += '<div><dt>' + esc(a.target) + ' sig</dt><dd class=mono>' + esc(shortHex(a.sig, 16, 16)) + '</dd></div>';
+  }
+  h += '<div><dt>Signed by</dt><dd class=mono title="' + esc(signer) + '">' + esc(shortHex(signer, 12, 8)) + '</dd></div></dl>';
+  h += '<div class=note>Signed install on a Seed over MCP: <code>cog install ' + esc(c.id) +
+    '</code> — the binary is verified against the WeaveLogic release key (<code>' + esc(shortHex(signer, 12, 8)) +
+    '</code>) via the signed registry at <code>/registry.json</code>. The cog then serves its API on port ' +
+    esc(c.bind_port || "?") + '.</div>';
+  return h;
 }
 
 function firmwareTab(fw: any[]): string {
@@ -1062,6 +1268,13 @@ h2{margin:2px 0 4px;font-size:18px}
 .psum{font-size:14px;margin:6px 0 10px;line-height:1.5}
 .note{background:var(--noteb);border-left:3px solid var(--accent);padding:9px 12px;border-radius:0 6px 6px 0;margin:10px 0;font-size:13px}
 .note code,.pid code{background:var(--chip-bg);padding:1px 6px;border-radius:5px;font-size:12px}
+.dlgrid{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.ext.dl{background:var(--wl);color:#fff;border-color:var(--wl)}.ext.dl:hover{background:color-mix(in srgb,var(--wl) 85%,#000)}
+.dlmeta{opacity:.8;font-weight:500;font-size:12px}
+.sigfacts{margin:12px 0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
+.sigfacts>div{display:contents}.sigfacts dt{color:var(--grey);text-transform:uppercase;font-size:10px;letter-spacing:.04em;align-self:center}
+.sigfacts dd{margin:0;color:var(--ink)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all}
 .lb{margin:12px 0;font-size:13px}.lb ul{margin:5px 0 0;padding-left:18px}.lb.good b{color:var(--green)}.lb.bad b{color:var(--accent)}
 table.spec{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}
 table.spec th{text-align:left;color:var(--grey);font-weight:600;padding:6px 12px 6px 0;vertical-align:top;white-space:nowrap;width:1%}

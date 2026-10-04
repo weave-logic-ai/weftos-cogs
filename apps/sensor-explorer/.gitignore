@@ -7,3 +7,6 @@ seed.sql
 pool-seed.sql
 pool.seed.json
 cogs-seed.sql
+cog-artifacts.sql
+registry.json
+wl-repo/

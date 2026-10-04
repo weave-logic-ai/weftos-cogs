@@ -57,6 +57,25 @@
       "sensor_name": "Hi-Link HLK-AS201 attitude sensor"
     },
     {
+      "id": "ld1040c-motion",
+      "name": "LD1040C Motion Radar",
+      "category": "presence",
+      "version": "0.1.0",
+      "description": "Hi-Link HLK-LD1040C 10.525 GHz X-band Doppler motion radar on a Cognitum Seed. Senses MOVING targets (micro-motion) within ~3-4 m over a 110 degrees ceiling-mount beam; it does not detect static presence and does not see through walls. The reliable signal is the OUT digital line (HIGH on motion, with the module's 5 s output hold and 2 s re-trigger block), read over a Pi GPIO input. Per window it reports whether motion is currently held, the rising-edge count, the fraction of the window OUT was high, and the seconds since the last motion. The first ~9 s after power-on are a warm-up and are flagged. An optional UART telemetry frame (off by default) best-effort adds the motion amplitude, signal and noise; a field that is not parsed is reported null, never fabricated. A missing OUT line yields a no_source line with null values.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8053,
+      "binary": "cog-ld1040c-motion-arm",
+      "maps_to": [
+        "hlk-ld1040c"
+      ],
+      "sensor_id": "hlk-ld1040c",
+      "sensor_name": "HLK-LD1040C (10 GHz Doppler motion radar)"
+    },
+    {
       "id": "ld2450-radar",
       "name": "LD2450 Tracking Radar",
       "category": "presence",

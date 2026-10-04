@@ -25,7 +25,13 @@
     "cogs:scan": "node scripts/scan-cogs.mjs",
     "cogs:seed:gen": "node scripts/gen-cogs-seed.mjs cogs.seed.json firmware.seed.json cogs-seed.sql",
     "db:cogs": "wrangler d1 execute sensor-explorer --remote --file=./cogs-seed.sql",
-    "db:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./cogs-seed.sql"
+    "db:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./cogs-seed.sql",
+    "db:migrate:artifacts": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0005_cog_artifacts.sql",
+    "db:migrate:artifacts:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0005_cog_artifacts.sql",
+    "cogs:artifacts:gen": "node scripts/gen-cog-artifacts.mjs registry.json cog-artifacts.sql",
+    "db:artifacts": "wrangler d1 execute sensor-explorer --remote --file=./cog-artifacts.sql",
+    "db:artifacts:local": "wrangler d1 execute sensor-explorer --local --file=./cog-artifacts.sql",
+    "cogs:artifacts:push": "node scripts/push-cog-bytes.mjs wl-repo"
   },
   "dependencies": {
     "hono": "^4.6.0"

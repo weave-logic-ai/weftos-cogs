@@ -9839,6 +9839,51 @@
         }
       ],
       "kind": "tool"
+    },
+    {
+      "id": "hlk-ld1040c",
+      "name": "HLK-LD1040C (10 GHz Doppler motion radar)",
+      "vendor": "Hi-Link",
+      "kind": "sensor",
+      "summary": "10.525 GHz X-band Doppler motion/occupancy radar (1T1R). Senses MOVING targets within ~3-4 m over a 110 deg ceiling beam; digital OUT (TTL, 5 s hold / 2 s block) plus UART/I2C. Built for smart-lighting occupancy; does not penetrate walls or detect static presence.",
+      "good_for": [
+        "motion / occupancy sensing",
+        "ceiling-mount presence for lighting",
+        "cheap micro-motion detect",
+        "very low power (~50 uA)"
+      ],
+      "not_for": [
+        "static / still presence",
+        "range or position",
+        "through-wall sensing",
+        "vitals"
+      ],
+      "notes": [
+        "Doppler, not FMCW \u2014 moving targets only (no range/position).",
+        "OUT line holds HIGH 5 s after a trigger with a 2 s re-trigger block; 7-9 s power-on warm-up.",
+        "UART baud is NOT documented \u2014 verify on the bench before trusting UART telemetry."
+      ],
+      "spec": {
+        "frequency": "10.525 GHz (X-band)",
+        "range": "3-4 m radius",
+        "beam": "110 deg +/-10",
+        "voltage": "5-12 V (3.3 V option)",
+        "current": "~50 uA",
+        "output": "TTL digital OUT + UART + I2C",
+        "source": "Hi-Link HLK-LD1040C datasheet"
+      },
+      "pins": [
+        "VCC",
+        "GND",
+        "TX/SDA",
+        "RX/SCL",
+        "OUT"
+      ],
+      "chips": [],
+      "photo": "",
+      "datasheet": "https://rajguruelectronics.com/Product/32658/020226124902.1.pdf",
+      "mouser_query": "HLK-LD1040C",
+      "buy": []
     }
   ],
   "chips": [
