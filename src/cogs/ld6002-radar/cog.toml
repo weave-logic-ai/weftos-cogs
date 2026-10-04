@@ -1,0 +1,43 @@
+[cog]
+id = "ld6002-radar"
+name = "LD6002 Radar"
+version = "0.2.0"
+category = "health"
+description = "Reads an HLK-LD6002 60 GHz radar over USB-serial UART and reports, per window, the radar's own heart-rate, breathing-rate, distance, target-count and presence-flag outputs, the target positions it streams (x/y metres in the radar's own frame, not room coordinates), plus frame and checksum counts. Values the radar did not report in the window are null. The vitals are the module's on-chip estimates, not medical measurements; no pose, no bounding box."
+binary = "cog-ld6002-radar-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Window length"
+description = "Seconds of radar frames aggregated into each output line"
+default = 1
+min = 1
+max = 3600
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.device]
+type = "string"
+label = "Serial device"
+description = "Path of the radar's USB-serial device (must be under /dev/)"
+default = "/dev/ttyUSB0"
+cli_arg = "--device"
+
+[config.baud]
+type = "integer"
+label = "Baud rate"
+description = "UART baud rate, 8N1. The LD6002 test board's factory firmware uses 115200"
+default = 115200
+min = 9600
+max = 3000000
+unit = "baud"
+cli_arg = "--baud"
+advanced = true
+
+[console]
+allowed_commands = ["--help", "--once", "--once --interval 5", "--once --device /dev/ttyUSB0", "--once --baud 115200"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

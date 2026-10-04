@@ -1,0 +1,72 @@
+[cog]
+id = "hlk-as201"
+name = "Attitude / IMU (HLK-AS201)"
+version = "0.1.0"
+category = "presence"
+description = "Hi-Link HLK-AS201 9/10-axis attitude sensor (3-axis accel + 3-axis gyro + 3-axis magnetometer + barometer; 32-bit DSP) read over a 3.3 V TTL UART at 115200 8N1. Reports orientation (roll/pitch/yaw), acceleration (g), angular rate (deg/s), magnetic field (uT), quaternion, temperature, pressure and height. Protocol CONFIRMED against the Hi-Link AS201 datasheet V1.1 (2025-08-01): FA FB.len.cmd.data.SUM.FC FD framing, cmd 0x00 report with a 42-byte ten-axis payload. The X/Y/Z silkscreen identifies this as an IMU, not a radar."
+binary = "cog-hlk-as201-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between reports while running continuously"
+default = 1
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.window]
+type = "integer"
+label = "Capture window (--once)"
+description = "Seconds of motion activity summarized by a single --once run"
+default = 2
+min = 1
+max = 30
+unit = "seconds"
+cli_arg = "--window"
+
+[config.port]
+type = "string"
+label = "Serial device"
+description = "UART device the AS201 is on (e.g. /dev/ttyUSB0). Blank autodetects a USB-serial adapter."
+default = "/dev/ttyUSB0"
+cli_arg = "--port"
+
+[config.baud]
+type = "integer"
+label = "Baud rate"
+description = "UART speed; the AS201 default is 115200"
+default = 115200
+min = 4800
+max = 921600
+unit = "bps"
+cli_arg = "--baud"
+advanced = true
+
+[config.motion]
+type = "string"
+label = "Motion threshold"
+description = "Angular-rate magnitude (deg/s) above which the sensor counts as moving"
+default = "25"
+cli_arg = "--motion"
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use synthetic AS201 frames instead of the UART (for testing without hardware)"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8051
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

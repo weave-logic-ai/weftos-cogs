@@ -1,0 +1,31 @@
+[package]
+name = "cog-ld2450-radar"
+version = "0.1.0"
+edition = "2021"
+description = "HLK-LD2450 24 GHz multi-target tracking radar reader: up to three target positions and speeds over UART, fail-honest"
+
+[[bin]]
+name = "cog-ld2450-radar"
+path = "src/main.rs"
+
+# `serialport` follows ld6002-radar (ADR-157). default-features = false drops the libudev
+# port-enumeration feature; the cog opens a caller-supplied device path and never
+# enumerates ports. On Linux it sets the baud through termios2/BOTHER, which the
+# LD2450's non-standard 256000 needs.
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serialport = { version = "4", default-features = false }
+
+# Off by default: the default build has the same code and dependencies without it.
+# `spatial-evidence` adds the spatial.evidence.v1 adapter (src/spatial.rs, ADR-161).
+[features]
+spatial-evidence = []
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

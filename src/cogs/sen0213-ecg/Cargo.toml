@@ -1,0 +1,22 @@
+[package]
+name = "cog-sen0213-ecg"
+version = "0.1.2"
+edition = "2021"
+description = "DFRobot SEN0213 (AD8232) ECG over an ADS1115 I2C ADC: raw and filtered waveform export, R-peaks, heart rate and HRV, fail-honest"
+
+[[bin]]
+name = "cog-sen0213-ecg"
+path = "src/main.rs"
+
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,43 @@
+# Guide for mentra-live (WeftOS ADR-104 guide format, schema 1).
+# This cog is a software bridge, not a wired sensor, so it has no header/pinout — the diagram
+# below is the signal flow from the glasses to the mesh. A fenced ```diagram block (flow) in a
+# page embeds it.
+
+schema = 1
+title = "Mentra Live glasses as a WeftOS node"
+sensor = "Mentra Live smart glasses (Android / MentraOS ASG client), reached over ADB"
+cog = "mentra-live"
+cog_version = "0.1.0"
+medical = false
+pages = ["start", "connect", "telemetry", "troubleshoot", "api"]
+
+# Checklist step ids the companion app links to a page.
+[links]
+adb = "connect"
+pair = "connect"
+cog_running = "connect"
+joined = "connect"
+battery = "telemetry"
+offline = "troubleshoot"
+export = "api"
+
+# Signal flow, left to right: glasses -> ADB -> this cog -> the mesh.
+[[flow]]
+name = "Mentra Live"
+detail = "Android / ASG"
+
+[[flow]]
+name = "ADB"
+detail = "USB or Wi-Fi"
+
+[[flow]]
+name = "mentra-live cog"
+detail = "poll presence + battery"
+
+[[flow]]
+name = "Store + Fleet"
+detail = "vector + heartbeat"
+
+[[flow]]
+name = "Node online"
+detail = "joined the mesh"

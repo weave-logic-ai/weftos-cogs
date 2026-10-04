@@ -1,0 +1,158 @@
+# Sensor guide for sound-detect (WeftOS ADR-104 sensor-guide format, schema 1).
+# Pages are Markdown files next to this one (guide/<page>.md). A fenced ```diagram block
+# (header | wiring | flow) embeds a diagram drawn from the tables below.
+
+schema = 1
+title = "Sound Detector on a Cognitum Seed"
+sensor = "KY-038 / LM393 sound-detection module (electret mic + comparator)"
+cog = "sound-detect"
+cog_version = "0.1.0"
+medical = false
+pages = ["start", "sensor", "wiring", "setup", "tuning", "placement", "troubleshoot", "api"]
+
+# Checklist step ids the companion app links to a page.
+[links]
+seed_api = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+adc = "wiring"
+sound = "tuning"
+
+# The Seed's 40-pin header: pins this sensor uses, and pins to stay away from.
+[header]
+board = "Raspberry Pi Zero 2 W / Pi 5 (Cognitum Seed)"
+orientation = "Hold it with the 40-pin header along the TOP edge and the ports (micro-SD, HDMI, USB, power) along the BOTTOM, micro-SD at the left. Pin 1 (3.3 V) is the LEFT pin of the INNER row (the row nearer the chip); the OUTER row (nearer the top edge) is the even pins 2-40, so pin 2 (5 V) is the outer-left pin."
+use = [
+  { pin = 1, name = "3V3", to = "ADS1115 VDD and sensor VCC", color = "red" },
+  { pin = 3, name = "GPIO2 SDA", to = "ADS1115 SDA", color = "yellow" },
+  { pin = 5, name = "GPIO3 SCL", to = "ADS1115 SCL", color = "green" },
+  { pin = 6, name = "GND", to = "ADS1115 GND, ADDR and sensor GND", color = "black" },
+]
+avoid = [
+  { pin = 2, why = "5 V: the module's OUT and the ADS1115 run at 3.3 V; the Pi's GPIO is not 5 V tolerant" },
+  { pin = 4, why = "5 V" },
+]
+
+[[parts]]
+id = "sensor"
+name = "Sound module"
+detail = "KY-038 / LM393, 3-pin"
+pins = ["OUT", "VCC", "GND"]
+
+[[parts]]
+id = "adc"
+name = "ADS1115"
+detail = "16-bit ADC, I2C 0x48"
+pins = ["A1", "VDD", "GND", "SDA", "SCL", "ADDR"]
+
+[[parts]]
+id = "seed"
+name = "Seed header"
+detail = "Pi, I2C bus 1"
+pins = ["1 3V3", "6 GND", "3 SDA", "5 SCL"]
+
+[[wires]]
+from = "sensor.OUT"
+to = "adc.A1"
+color = "blue"
+label = "sound level / OUT"
+
+[[wires]]
+from = "sensor.VCC"
+to = "adc.VDD"
+color = "red"
+label = "3.3 V"
+
+[[wires]]
+from = "sensor.GND"
+to = "adc.GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "adc.ADDR"
+to = "adc.GND"
+color = "black"
+label = "ADDR to GND = 0x48"
+
+[[wires]]
+from = "adc.VDD"
+to = "seed.1 3V3"
+color = "red"
+label = "3.3 V only"
+
+[[wires]]
+from = "adc.GND"
+to = "seed.6 GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "adc.SDA"
+to = "seed.3 SDA"
+color = "yellow"
+label = "SDA"
+
+[[wires]]
+from = "adc.SCL"
+to = "seed.5 SCL"
+color = "green"
+label = "SCL"
+
+# Signal flow, left to right.
+[[flow]]
+name = "Electret mic"
+detail = "picks up sound"
+
+[[flow]]
+name = "LM393"
+detail = "comparator vs the trimpot"
+
+[[flow]]
+name = "OUT"
+detail = "digital, high on sound"
+
+[[flow]]
+name = "ADS1115"
+detail = "A1, 16-bit, 860 SPS"
+
+[[flow]]
+name = "sound-detect cog"
+detail = "threshold + event rate"
+
+[[flow]]
+name = "Outputs"
+detail = "stdout JSON, store vector, :8049 export"
+
+# Pickable mics (the audio cog scales to many). The console shows a searchable
+# picker + a "Configuring: X" banner so it's always clear which mic you're on.
+# Each analog mic is one ADS1115 channel; a bus holds 4 ADS1115 (0x48-0x4B) x
+# 4 channels = 16 analog mics, and more arrive as networked mic nodes (Fleet).
+[[sensors]]
+id = "mic-48-a1"
+name = "Mic 1"
+where = "ADS1115 0x48 · channel A1"
+detail = "KY-038/LM393 OUT -> A1. Run: cog-sound-detect --channel 1 (A0 is the ECG cog)."
+page = "wiring"
+
+[[sensors]]
+id = "mic-48-a2"
+name = "Mic 2"
+where = "ADS1115 0x48 · channel A2"
+detail = "Second mic OUT -> A2. Run: cog-sound-detect --channel 2."
+page = "wiring"
+
+[[sensors]]
+id = "mic-48-a3"
+name = "Mic 3"
+where = "ADS1115 0x48 · channel A3"
+detail = "Third mic OUT -> A3. Run: cog-sound-detect --channel 3."
+page = "wiring"
+
+[[sensors]]
+id = "mic-49-a0"
+name = "Mic 4"
+where = "ADS1115 0x49 · channel A0"
+detail = "Add a second ADS1115 (ADDR->VDD = 0x49) for 4 more mics. Run: --i2c-addr 73 --channel 0."
+page = "wiring"

@@ -1,0 +1,166 @@
+# Sensor guide for sen0213-ecg (WeftOS ADR-104 sensor-guide format, schema 1).
+# Pages are Markdown files next to this one (guide/<page>.md). The first `# ` line is the
+# page title and the first `> ` line its one-line summary. A fenced block
+#   ```diagram
+#   wiring | header | placements | flow
+#   ```
+# embeds a diagram drawn from the tables below. Coordinates are normalised 0..1.
+
+schema = 1
+title = "SEN0213 ECG on a Cognitum Seed"
+sensor = "DFRobot SEN0213 (AD8232 single-lead ECG)"
+cog = "sen0213-ecg"
+cog_version = "0.1.2"
+medical = false
+pages = ["start", "parts", "wiring", "electrodes", "setup", "calibrate", "troubleshoot", "api", "safety", "glossary"]
+
+# Checklist step ids a companion app can link to a page.
+[links]
+seed_api = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+adc_found = "wiring"
+sensor_powered = "wiring"
+electrodes = "electrodes"
+beats = "calibrate"
+polarity = "electrodes"
+mains = "calibrate"
+
+# The Seed's 40-pin header: pins this sensor uses, and pins to stay away from.
+[header]
+board = "Raspberry Pi Zero 2 W (Cognitum Seed)"
+orientation = "Header along the top edge, SD card on the left: pin 1 is the top-left pin of the inner row."
+use = [
+  { pin = 1, name = "3V3", to = "ADS1115 VDD and SEN0213 +", color = "red" },
+  { pin = 3, name = "GPIO2 SDA", to = "ADS1115 SDA", color = "yellow" },
+  { pin = 5, name = "GPIO3 SCL", to = "ADS1115 SCL", color = "green" },
+  { pin = 6, name = "GND", to = "ADS1115 GND, ADDR and SEN0213 -", color = "black" },
+]
+avoid = [
+  { pin = 2, why = "5 V: the ADS1115 pulls SDA/SCL up to its own supply, and the Pi's GPIO is not 5 V tolerant" },
+  { pin = 4, why = "5 V" },
+]
+
+# Wiring diagram: parts drawn left to right, wires between named pins.
+[[parts]]
+id = "sensor"
+name = "DFRobot SEN0213"
+detail = "AD8232 ECG, Gravity 3-pin"
+pins = ["A", "+", "-"]
+
+[[parts]]
+id = "adc"
+name = "ADS1115"
+detail = "16-bit ADC, I2C 0x48"
+pins = ["A0", "VDD", "GND", "SDA", "SCL", "ADDR"]
+
+[[parts]]
+id = "seed"
+name = "Seed header"
+detail = "Pi Zero 2 W, I2C bus 1"
+pins = ["1 3V3", "6 GND", "3 SDA", "5 SCL"]
+
+[[wires]]
+from = "sensor.A"
+to = "adc.A0"
+color = "blue"
+label = "ECG signal"
+
+[[wires]]
+from = "sensor.+"
+to = "adc.VDD"
+color = "red"
+label = "3.3 V"
+
+[[wires]]
+from = "sensor.-"
+to = "adc.GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "adc.ADDR"
+to = "adc.GND"
+color = "black"
+label = "ADDR to GND = 0x48"
+
+[[wires]]
+from = "adc.VDD"
+to = "seed.1 3V3"
+color = "red"
+label = "3.3 V only"
+
+[[wires]]
+from = "adc.GND"
+to = "seed.6 GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "adc.SDA"
+to = "seed.3 SDA"
+color = "yellow"
+label = "SDA"
+
+[[wires]]
+from = "adc.SCL"
+to = "seed.5 SCL"
+color = "green"
+label = "SCL"
+
+# Body placements (front view of the subject; the subject's right is the viewer's left).
+[[placements]]
+id = "chest-lead1"
+name = "Chest, lead I (default)"
+when = "Seated or lying, best general starting point; least muscle noise."
+pads = [
+  { label = "RA", x = 0.36, y = 0.24, note = "below the right collarbone" },
+  { label = "LA", x = 0.64, y = 0.24, note = "below the left collarbone" },
+  { label = "RL", x = 0.38, y = 0.70, note = "right lower ribs (reference)" },
+]
+
+[[placements]]
+id = "chest-lead2"
+name = "Chest, lead II (taller R-wave)"
+when = "R-waves too small or T-waves as tall as R: lead II usually gives the largest R."
+pads = [
+  { label = "RA", x = 0.36, y = 0.24, note = "below the right collarbone" },
+  { label = "LA", x = 0.66, y = 0.70, note = "left lower ribs, below the heart" },
+  { label = "RL", x = 0.38, y = 0.70, note = "right lower ribs (reference)" },
+]
+
+[[placements]]
+id = "wrists"
+name = "Wrists (quick check)"
+when = "No undressing; expect more noise. Rest the arms, do not grip anything."
+pads = [
+  { label = "RA", x = 0.10, y = 0.62, note = "inside of the right wrist" },
+  { label = "LA", x = 0.90, y = 0.62, note = "inside of the left wrist" },
+  { label = "RL", x = 0.38, y = 0.96, note = "right ankle (or right forearm)" },
+]
+
+# Signal flow, left to right.
+[[flow]]
+name = "Electrodes"
+detail = "RA / LA / RL"
+
+[[flow]]
+name = "AD8232"
+detail = "amplify + filter, 0-3.3 V"
+
+[[flow]]
+name = "ADS1115"
+detail = "16 bit, 860 SPS"
+
+[[flow]]
+name = "I2C bus 1"
+detail = "Seed header"
+
+[[flow]]
+name = "sen0213-ecg cog"
+detail = "250 Hz, filter, R-peaks, HR, HRV"
+
+[[flow]]
+name = "Outputs"
+detail = "stdout JSON, store vector, :8046 export"

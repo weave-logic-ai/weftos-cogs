@@ -1,0 +1,80 @@
+[cog]
+id = "ld2450-radar"
+name = "LD2450 Tracking Radar"
+version = "0.1.0"
+category = "presence"
+description = "Reads an HLK-LD2450 24 GHz multi-target tracking radar over a 3.3 V UART (256000 8N1) and reports, per window, the up-to-three targets of the radar's latest frame: x/y in metres in the radar's own frame (not room coordinates), speed in m/s and the distance-gate size, plus the valid-target count, frame rate and parse-error counts. Positions only: no identity, no pose, no bounding box. A missing or silent radar yields null values, never a fabricated reading."
+binary = "cog-ld2450-radar-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Window length"
+description = "Seconds of radar frames summarised by each output line"
+default = 1
+min = 1
+max = 3600
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.device]
+type = "string"
+label = "Serial device"
+description = "Path of the radar's serial device (must be under /dev/): /dev/serial0 for the Seed header UART, /dev/ttyUSB0 for a USB-serial adapter"
+default = "/dev/serial0"
+cli_arg = "--device"
+
+[config.baud]
+type = "integer"
+label = "Baud rate"
+description = "UART baud rate, 8N1. Factory default 256000; only the radar's documented rates are accepted"
+default = 256000
+min = 9600
+max = 460800
+unit = "baud"
+cli_arg = "--baud"
+advanced = true
+
+[config.query_firmware]
+type = "boolean"
+label = "Read firmware version"
+description = "At start, send enable-config, read-firmware and end-config to the radar and report its version. Needs the Pi TX to radar RX wire. Changes no setting"
+default = false
+cli_arg = "--query-firmware"
+advanced = true
+
+[config.tracking_mode]
+type = "select"
+label = "Tracking mode"
+description = "keep leaves the radar as it is (no writes). single or multi sends the tracking-mode command at start, which changes the radar's configuration"
+default = "keep"
+options = ["keep", "single", "multi"]
+cli_arg = "--tracking-mode"
+advanced = true
+
+[config.api_bind]
+type = "string"
+label = "Export address"
+description = "host:port of the read-only target export (continuous mode only). The default keeps it on the Seed; 0.0.0.0:8052 exposes people's positions to the LAN"
+default = "127.0.0.1:8052"
+cli_arg = "--api-bind"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use synthetic walking-person frames, parsed by the same decoder, instead of the radar (testing without hardware). Output is marked simulated"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8052
+bind_loopback_only = true
+
+[console]
+allowed_commands = ["--help", "--once", "--once --simulate", "--once --interval 5", "--once --device /dev/ttyUSB0", "--once --query-firmware"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

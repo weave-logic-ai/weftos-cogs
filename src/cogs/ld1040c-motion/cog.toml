@@ -1,0 +1,73 @@
+[cog]
+id = "ld1040c-motion"
+name = "LD1040C Motion Radar"
+version = "0.1.0"
+category = "presence"
+description = "Hi-Link HLK-LD1040C 10.525 GHz X-band Doppler motion radar on a Cognitum Seed. Senses MOVING targets (micro-motion) within ~3-4 m over a 110 degrees ceiling-mount beam; it does not detect static presence and does not see through walls. The reliable signal is the OUT digital line (HIGH on motion, with the module's 5 s output hold and 2 s re-trigger block), read over a Pi GPIO input. Per window it reports whether motion is currently held, the rising-edge count, the fraction of the window OUT was high, and the seconds since the last motion. The first ~9 s after power-on are a warm-up and are flagged. An optional UART telemetry frame (off by default) best-effort adds the motion amplitude, signal and noise; a field that is not parsed is reported null, never fabricated. A missing OUT line yields a no_source line with null values."
+binary = "cog-ld1040c-motion-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Window length"
+description = "Seconds of OUT-line activity summarised by each output line while running continuously"
+default = 1
+min = 1
+max = 3600
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.gpio]
+type = "integer"
+label = "OUT GPIO (BCM)"
+description = "BCM GPIO number the module's OUT pin is wired to, on /dev/gpiochip0. Default 17 is Pi header pin 11, a free general-purpose pin on the Seed"
+default = 17
+min = 0
+max = 27
+cli_arg = "--gpio"
+
+[config.uart]
+type = "string"
+label = "UART device (optional)"
+description = "Path under /dev/ of the module's optional serial telemetry (e.g. /dev/serial0). Blank disables UART; only the OUT line is used. Best-effort: adds motion_amplitude, signal and noise when a frame parses"
+default = ""
+cli_arg = "--uart"
+advanced = true
+
+[config.baud]
+type = "integer"
+label = "UART baud"
+description = "Serial speed, 8N1, for the optional UART telemetry. The datasheet does NOT document the baud rate; 9600 is a guess and MUST be verified on the bench"
+default = 9600
+min = 1200
+max = 921600
+unit = "bps"
+cli_arg = "--baud"
+advanced = true
+
+[config.api_bind]
+type = "string"
+label = "Export address"
+description = "host:port of the read-only HTTP export. 127.0.0.1:8053 keeps it on the Seed; 0.0.0.0:8053 exposes motion state to the LAN"
+default = "127.0.0.1:8053"
+cli_arg = "--api-bind"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Synthesize a walking-person OUT pattern (with the 5 s hold / 2 s block semantics) instead of reading hardware, for testing without a radar. Output is marked simulated"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8053
+bind_loopback_only = true
+
+[console]
+allowed_commands = ["--help", "--once", "--once --simulate", "--once --interval 5", "--once --simulate --interval 2"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

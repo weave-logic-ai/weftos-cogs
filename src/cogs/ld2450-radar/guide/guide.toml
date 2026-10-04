@@ -1,0 +1,91 @@
+# Sensor guide for ld2450-radar (WeftOS ADR-104 sensor-guide format, schema 1).
+# Pages are guide/<page>.md; ```diagram fences embed: header | wiring | flow.
+
+schema = 1
+title = "LD2450 Tracking Radar on a Cognitum Seed"
+sensor = "Hi-Link HLK-LD2450 24 GHz multi-target tracking radar"
+cog = "ld2450-radar"
+cog_version = "0.1.0"
+medical = false
+pages = ["start", "parts", "wiring", "setup", "placement", "troubleshoot", "api", "glossary"]
+
+[links]
+seed_api = "setup"
+uart_free = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+radar_streaming = "wiring"
+frames = "troubleshoot"
+targets = "placement"
+axes = "placement"
+
+[header]
+board = "Raspberry Pi Zero 2 W (Cognitum Seed)"
+orientation = "Header along the top edge, SD card on the left: pin 1 is the top-left pin of the inner row, pin 2 the top-left pin of the outer row."
+use = [
+  { pin = 2, name = "5V", to = "LD2450 5V", color = "red" },
+  { pin = 6, name = "GND", to = "LD2450 G (GND)", color = "black" },
+  { pin = 8, name = "GPIO14 TXD", to = "LD2450 UR (radar RX)", color = "yellow" },
+  { pin = 10, name = "GPIO15 RXD", to = "LD2450 UT (radar TX)", color = "green" },
+]
+avoid = [
+  { pin = 1, why = "3.3 V: the LD2450 needs a 5 V supply (Hi-Link instruction manual V1.00 Table 4)" },
+  { pin = 17, why = "3.3 V, same reason as pin 1" },
+]
+
+[[parts]]
+id = "radar"
+name = "HLK-LD2450"
+detail = "24 GHz radar, 4-pin header"
+pins = ["5V", "G", "UR", "UT"]
+
+[[parts]]
+id = "seed"
+name = "Seed header"
+detail = "Pi Zero 2 W, primary UART"
+pins = ["2 5V", "6 GND", "8 TXD", "10 RXD"]
+
+[[wires]]
+from = "radar.5V"
+to = "seed.2 5V"
+color = "red"
+label = "5 V"
+
+[[wires]]
+from = "radar.G"
+to = "seed.6 GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "radar.UT"
+to = "seed.10 RXD"
+color = "green"
+label = "radar TX -> Pi RX (data)"
+
+[[wires]]
+from = "radar.UR"
+to = "seed.8 TXD"
+color = "yellow"
+label = "Pi TX -> radar RX (commands)"
+
+[[flow]]
+name = "Room"
+detail = "people moving, 0-6 m, +-60 deg"
+
+[[flow]]
+name = "LD2450"
+detail = "24 GHz FMCW, tracks up to 3 targets"
+
+[[flow]]
+name = "UART"
+detail = "256000 8N1, 3.3 V, 10 frames/s"
+
+[[flow]]
+name = "ld2450-radar cog"
+detail = "frame parser, plausibility, counters"
+
+[[flow]]
+name = "Outputs"
+detail = "stdout JSON, :8052 export (loopback)"

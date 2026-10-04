@@ -1,0 +1,177 @@
+[cog]
+id = "bridge"
+name = "Sensor Bridge"
+version = "0.2.0"
+category = "network"
+description = "Receives sensor readings from external WeftOS nodes (a Pi 5, an Orange Pi) and writes them into the Seed store, so remote sensing joins the Seed's memory. Readings come from weft-bridge-send; each source gets its own store id. COG-007."
+binary = "cog-bridge-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between status reports while running continuously"
+default = 5
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.base_store_id]
+type = "integer"
+label = "Base store id"
+description = "The first source gets this store-vector id; later sources get the next ids up"
+default = 30
+min = 1
+max = 200
+cli_arg = "--base-store-id"
+
+[config.max_sources]
+type = "integer"
+label = "Max sources"
+description = "How many distinct (node, cog) sources to accept; the rest are rejected"
+default = 16
+min = 1
+max = 64
+cli_arg = "--max-sources"
+advanced = true
+
+[config.token]
+type = "string"
+label = "Shared token (deprecated)"
+description = "DEPRECATED shared secret (X-Bridge-Token); it is visible in the process list (ps), so prefer the BRIDGE_TOKEN environment variable, or better, per-node keys. Only honoured when allow_shared_token is on; with a token set and that flag off, ingest is refused. Prefer per-node keys (allowlist)."
+default = ""
+cli_arg = "--token"
+secret = true
+advanced = true
+
+[config.api_bind]
+type = "string"
+label = "Bind address"
+description = "host:port the bridge listens on. Default 127.0.0.1:8048 keeps it on the Seed. To accept remote nodes set 0.0.0.0:8048 together with an allowlist; a non-loopback bind with no allowlist and no token refuses to start unless insecure_open is set."
+default = "127.0.0.1:8048"
+cli_arg = "--api-bind"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Inject a synthetic remote source so the bridge can be tested with no external node"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[config.allowlist]
+type = "string"
+label = "Node allowlist file"
+description = "Path to a file of 'NODE PUBKEY_HEX' lines. When set, ingest requires an Ed25519-signed request from a listed node (COG-011). Re-read when the file changes."
+default = ""
+cli_arg = "--allowlist"
+
+[config.allow_shared_token]
+type = "boolean"
+label = "Allow deprecated shared token"
+description = "Accept the old X-Bridge-Token as a fallback. Off by default; migrate senders to signed requests and leave this off."
+default = false
+cli_arg = "--allow-shared-token"
+advanced = true
+
+[config.insecure_open]
+type = "boolean"
+label = "Allow unauthenticated network writes"
+description = "Permit starting with no allowlist and no token on a non-loopback bind, so anyone on the network can write readings. Leave off."
+default = false
+cli_arg = "--insecure-open"
+advanced = true
+
+[config.status_auth]
+type = "boolean"
+label = "Signed status only"
+description = "Give loopback callers no special access to /status and /sources detail. Turn on when a local TLS terminator makes every client look like loopback."
+default = false
+cli_arg = "--status-auth"
+advanced = true
+
+[config.auth_window]
+type = "integer"
+label = "Signature time window"
+description = "A signed request's timestamp must be within this many seconds of the bridge clock (also the replay-nonce lifetime)"
+default = 60
+min = 5
+max = 600
+unit = "seconds"
+cli_arg = "--auth-window"
+advanced = true
+
+[config.no_store]
+type = "boolean"
+label = "No Seed store"
+description = "Keep readings in the bridge report only; do not write to a Seed store. For running the bridge as a receiver on a WeftOS node."
+default = false
+cli_arg = "--no-store"
+advanced = true
+
+[config.relay_to]
+type = "string"
+label = "Relay to (outbound)"
+description = "http://host:8048/ingest of a bridge receiver. When set, this Seed's own sensor stream is republished there, signed with node_id and key_file."
+default = ""
+cli_arg = "--relay-to"
+
+[config.node_id]
+type = "string"
+label = "Node id (outbound)"
+description = "This node's name in the receiver's allowlist; also the 'source' of relayed readings"
+default = ""
+cli_arg = "--node-id"
+advanced = true
+
+[config.key_file]
+type = "string"
+label = "Node key file (outbound)"
+description = "Path to this node's Ed25519 secret key (64 hex chars, mode 0600), made by 'cog-bridge keygen'"
+default = ""
+cli_arg = "--key-file"
+secret = true
+advanced = true
+
+[config.seed_url]
+type = "string"
+label = "Seed address (outbound)"
+description = "host:port of the Seed agent whose /api/v1/sensor/stream is relayed"
+default = "127.0.0.1:80"
+cli_arg = "--seed-url"
+advanced = true
+
+[config.relay_cog]
+type = "string"
+label = "Relay cog name (outbound)"
+description = "The 'cog' field on relayed readings"
+default = "seed-stream"
+cli_arg = "--relay-cog"
+advanced = true
+
+[config.relay_buffer]
+type = "integer"
+label = "Relay buffer (outbound)"
+description = "Readings held while the receiver is unreachable; the oldest are dropped when full"
+default = 256
+min = 1
+max = 4096
+cli_arg = "--relay-buffer"
+advanced = true
+
+[api]
+bind_port = 8048
+# The shipped default config binds 127.0.0.1 (this Seed only), but the bridge exists to take
+# readings from other nodes once api_bind is set to a network address with an allowlist, so the
+# cog is not declared loopback-only. The refuse-to-start rule (no allowlist/token on a network
+# bind) is what keeps a network bind from being open.
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

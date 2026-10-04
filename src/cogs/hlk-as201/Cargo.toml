@@ -1,0 +1,23 @@
+[package]
+name = "cog-hlk-as201"
+version = "0.1.0"
+edition = "2021"
+description = "Hi-Link HLK-AS201 9/10-axis attitude/IMU sensor over UART (115200 8N1): accel, gyro, Euler angles, magnetometer, motion events; WIT-standard frame (fallback, unconfirmed for AS201); fail-honest on no source"
+
+[[bin]]
+name = "cog-hlk-as201"
+path = "src/main.rs"
+
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libc = "0.2"
+base64 = "0.22"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 470" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <title>sen0213-ecg cog signal flow: hardware, sampling, processing and the three outputs</title>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker></defs>
+  <rect width="1100" height="470" fill="#ffffff"/>
+  <text x="550" y="30" text-anchor="middle" font-size="19" font-weight="bold">sen0213-ecg: signal flow</text>
+
+  <!-- hardware row -->
+  <g>
+    <rect x="20" y="60" width="150" height="60" rx="6" fill="#fdf1d6" stroke="#333"/><text x="95" y="86" text-anchor="middle" font-weight="bold">Electrodes</text><text x="95" y="104" text-anchor="middle">RA / LA / RL</text>
+    <rect x="210" y="60" width="170" height="60" rx="6" fill="#e8f0fe" stroke="#1a3d8f"/><text x="295" y="86" text-anchor="middle" font-weight="bold">AD8232 (SEN0213)</text><text x="295" y="104" text-anchor="middle">amplify, 0–3.3 V analog</text>
+    <rect x="420" y="60" width="170" height="60" rx="6" fill="#eaf7ea" stroke="#1d6b2a"/><text x="505" y="86" text-anchor="middle" font-weight="bold">ADS1115</text><text x="505" y="104" text-anchor="middle">860 SPS, ±4.096 V, 16 bit</text>
+    <rect x="630" y="60" width="170" height="60" rx="6" fill="#fde8e8" stroke="#8f1a1a"/><text x="715" y="86" text-anchor="middle" font-weight="bold">/dev/i2c-1</text><text x="715" y="104" text-anchor="middle">Seed GPIO header</text>
+    <line x1="170" y1="90" x2="208" y2="90" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="380" y1="90" x2="418" y2="90" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+    <line x1="590" y1="90" x2="628" y2="90" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  </g>
+
+  <!-- cog box -->
+  <rect x="20" y="150" width="1060" height="180" rx="10" fill="#f6f6fb" stroke="#555" stroke-dasharray="6,4"/>
+  <text x="36" y="172" font-weight="bold">cog-sen0213-ecg (runs on the Seed, started by the Cognitum agent)</text>
+  <path d="M715 120 L715 140 L95 140 L95 186" fill="none" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="30" y="188" width="150" height="66" rx="6" fill="#fff" stroke="#333"/><text x="105" y="212" text-anchor="middle" font-weight="bold">Sampler</text><text x="105" y="230" text-anchor="middle">250 Hz, fixed deadlines</text><text x="105" y="246" text-anchor="middle">raw volts + jitter stats</text>
+
+  <rect x="230" y="188" width="190" height="66" rx="6" fill="#fff" stroke="#333"/><text x="325" y="212" text-anchor="middle" font-weight="bold">Display filter</text><text x="325" y="230" text-anchor="middle">0.5–40 Hz band-pass</text><text x="325" y="246" text-anchor="middle">+ 60/50 Hz notch → mV</text>
+  <rect x="230" y="262" width="190" height="60" rx="6" fill="#fff" stroke="#333"/><text x="325" y="285" text-anchor="middle" font-weight="bold">Pan-Tompkins QRS</text><text x="325" y="303" text-anchor="middle">5–15 Hz, d/dt, ², 150 ms MWI</text>
+
+  <rect x="470" y="188" width="190" height="66" rx="6" fill="#fff" stroke="#333"/><text x="565" y="212" text-anchor="middle" font-weight="bold">60 s ring buffer</text><text x="565" y="230" text-anchor="middle">raw_v, filtered_mv,</text><text x="565" y="246" text-anchor="middle">R-peak times</text>
+  <rect x="470" y="262" width="190" height="60" rx="6" fill="#fff" stroke="#333"/><text x="565" y="285" text-anchor="middle" font-weight="bold">Lead check</text><text x="565" y="303" text-anchor="middle">ok / leads_off / flat</text>
+
+  <rect x="710" y="188" width="190" height="66" rx="6" fill="#fff" stroke="#333"/><text x="805" y="212" text-anchor="middle" font-weight="bold">Metrics</text><text x="805" y="230" text-anchor="middle">HR (median RR, 10 s)</text><text x="805" y="246" text-anchor="middle">SDNN, RMSSD (60 s), quality</text>
+
+  <line x1="180" y1="221" x2="228" y2="221" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M180 240 L205 240 L205 292 L228 292" fill="none" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="420" y1="221" x2="468" y2="221" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M420 292 L445 292 L445 240 L468 240" fill="none" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="565" y1="254" x2="565" y2="260" stroke="#444" stroke-width="2"/>
+  <line x1="660" y1="221" x2="708" y2="221" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M660 292 L685 292 L685 240 L708 240" fill="none" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- outputs -->
+  <rect x="40" y="370" width="300" height="80" rx="8" fill="#e3f2fd" stroke="#1565c0"/><text x="190" y="394" text-anchor="middle" font-weight="bold">stdout JSON report</text><text x="190" y="412" text-anchor="middle">per window; Seed keeps it in /apps/{id}/logs</text><text x="190" y="430" text-anchor="middle">--emit-samples adds the waveforms</text>
+  <rect x="400" y="370" width="300" height="80" rx="8" fill="#e8f5e9" stroke="#2e7d32"/><text x="550" y="394" text-anchor="middle" font-weight="bold">Seed vector store</text><text x="550" y="412" text-anchor="middle">POST 127.0.0.1:80/api/v1/store/ingest</text><text x="550" y="430" text-anchor="middle">8 floats, id 21</text>
+  <rect x="760" y="370" width="300" height="80" rx="8" fill="#fff3e0" stroke="#ef6c00"/><text x="910" y="394" text-anchor="middle" font-weight="bold">Signal export (HTTP)</text><text x="910" y="412" text-anchor="middle">:8046 /raw  /raw.csv  /status</text><text x="910" y="430" text-anchor="middle">raw + filtered + R-peaks, last 60 s</text>
+  <path d="M805 254 L805 345 L190 345 L190 368" fill="none" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="550" y1="345" x2="550" y2="368" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+  <path d="M660 250 L675 250 L675 338 L910 338 L910 368" fill="none" stroke="#444" stroke-width="2" marker-end="url(#a)"/>
+</svg>

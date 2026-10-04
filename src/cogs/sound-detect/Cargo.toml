@@ -1,0 +1,23 @@
+[package]
+name = "cog-sound-detect"
+version = "0.1.0"
+edition = "2021"
+description = "KY-038 / LM393 sound-detection module over an ADS1115 I2C ADC: sound-present, event rate, quiet time, activity and peak; fail-honest on no source"
+
+[[bin]]
+name = "cog-sound-detect"
+path = "src/main.rs"
+
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libc = "0.2"
+base64 = "0.22"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,65 @@
+[cog]
+id = "rd-03e"
+name = "Presence Radar (RD-03E)"
+version = "0.1.0"
+category = "presence"
+description = "Ai-Thinker RD-03E 24 GHz FMCW presence + ranging radar (S3KM111L SoC) read over a 3.3 V TTL UART at 256000 8N1. The module streams a 5-byte report frame (AA·dist_lo·dist_hi·state·55) on power-up with no configuration needed. Reports whether a target is present, its distance in cm (±5 cm from 30-350 cm, to ~6 m), the per-minute detection rate and the quiet time since the last detection. Frame layout confirmed by community captures; gesture-code meanings (state 2-8) are vendor-specific and reported raw."
+binary = "cog-rd-03e-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between reports while running continuously"
+default = 1
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.window]
+type = "integer"
+label = "Capture window (--once)"
+description = "Seconds of radar activity summarized by a single --once run"
+default = 2
+min = 1
+max = 30
+unit = "seconds"
+cli_arg = "--window"
+
+[config.port]
+type = "string"
+label = "Serial device"
+description = "UART device the RD-03E is on (e.g. /dev/ttyUSB0). Blank autodetects a USB-serial adapter."
+default = "/dev/ttyUSB0"
+cli_arg = "--port"
+
+[config.baud]
+type = "integer"
+label = "Baud rate"
+description = "UART speed; the RD-03E default is 256000"
+default = 256000
+min = 9600
+max = 921600
+unit = "bps"
+cli_arg = "--baud"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use synthetic radar frames instead of the UART (for testing without hardware)"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8050
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

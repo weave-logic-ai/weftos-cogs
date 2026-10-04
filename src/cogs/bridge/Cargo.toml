@@ -1,0 +1,25 @@
+[package]
+name = "cog-bridge"
+version = "0.2.0"
+edition = "2021"
+description = "Bridge cog: receives sensor readings from external WeftOS nodes (Pi 5, Orange Pi) and writes them into the Seed store, so remote sensing joins the Seed memory. COG-007."
+
+[[bin]]
+name = "cog-bridge"
+path = "src/main.rs"
+
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libc = "0.2"
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "fast", "zeroize"] }
+zeroize = "1"
+sha2 = { version = "0.10", default-features = false, features = ["std"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

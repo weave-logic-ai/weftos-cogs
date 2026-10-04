@@ -1,0 +1,93 @@
+[cog]
+id = "sound-detect"
+name = "Sound Detector"
+version = "0.1.0"
+category = "presence"
+description = "Detects sound/noise with a KY-038 / LM393 microphone comparator module read through an ADS1115 I2C ADC on the Seed's GPIO header (OUT on A1, so it coexists with the sen0213-ecg cog on A0). Reports whether sound is present, the per-minute event rate, the quiet time since the last event, the activity percentage, level and peak. Tune the module's trimpot (or --threshold) for your room. Works for the common active-high digital OUT and, degraded, for analog-OUT variants."
+binary = "cog-sound-detect-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between reports while running continuously"
+default = 5
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.window]
+type = "integer"
+label = "Capture window (--once)"
+description = "Seconds of audio activity summarized by a single --once run"
+default = 5
+min = 1
+max = 30
+unit = "seconds"
+cli_arg = "--window"
+
+[config.sample_rate]
+type = "integer"
+label = "Sample rate"
+description = "ADC samples per second (higher catches shorter sound bursts)"
+default = 1000
+min = 100
+max = 2000
+unit = "Hz"
+cli_arg = "--sample-rate"
+
+[config.threshold]
+type = "string"
+label = "Threshold (volts)"
+description = "OUT voltage above which a sound event is counted. ~1.5 suits the active-high digital OUT; lower it for analog-OUT modules or more sensitivity."
+default = "1.5"
+cli_arg = "--threshold"
+
+[config.channel]
+type = "integer"
+label = "ADC channel"
+description = "ADS1115 input the sensor OUT wire is on (1 = A1; A0 is the ECG cog)"
+default = 1
+min = 0
+max = 3
+cli_arg = "--channel"
+
+[config.i2c_bus]
+type = "integer"
+label = "I2C bus"
+description = "Linux I2C bus number (/dev/i2c-N); 1 is the GPIO header bus"
+default = 1
+min = 0
+max = 9
+cli_arg = "--i2c-bus"
+advanced = true
+
+[config.i2c_addr]
+type = "integer"
+label = "ADS1115 address"
+description = "7-bit I2C address: 72 (0x48, ADDR to GND), 73 (0x49), 74 (0x4A), 75 (0x4B)"
+default = 72
+min = 72
+max = 75
+cli_arg = "--i2c-addr"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use synthetic sound bursts instead of the ADC (for testing without hardware)"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8049
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

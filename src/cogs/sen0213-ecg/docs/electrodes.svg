@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 520" font-family="Helvetica, Arial, sans-serif" font-size="14">
+  <title>Electrode placement for the SEN0213 (lead I style), front view of the subject</title>
+  <rect width="700" height="520" fill="#ffffff"/>
+  <text x="350" y="30" text-anchor="middle" font-size="18" font-weight="bold">Electrode placement (front view)</text>
+  <text x="350" y="50" text-anchor="middle" font-size="12">The subject's right is on YOUR left.</text>
+  <g transform="translate(90,0)"><!-- torso outline -->
+  <path d="M190 80 Q260 60 330 80 L400 110 Q420 120 415 150 L380 330 Q370 420 330 470 L190 470 Q150 420 140 330 L105 150 Q100 120 120 110 Z" fill="#f7efe8" stroke="#8d6e63" stroke-width="2"/>
+  <ellipse cx="260" cy="70" rx="40" ry="18" fill="#f7efe8" stroke="#8d6e63" stroke-width="2"/>
+  <path d="M195 120 Q260 140 325 120" fill="none" stroke="#bcaaa4" stroke-width="2"/>
+  <!-- heart -->
+  <path d="M280 220 q15 -22 32 -6 q14 16 -32 50 q-46 -34 -32 -50 q17 -16 32 6z" fill="#ef9a9a" stroke="#c62828"/>
+  <!-- pads -->
+  <circle cx="190" cy="150" r="18" fill="#fff59d" stroke="#333" stroke-width="2"/><text x="190" y="155" text-anchor="middle" font-weight="bold">RA</text>
+  <circle cx="330" cy="150" r="18" fill="#fff59d" stroke="#333" stroke-width="2"/><text x="330" y="155" text-anchor="middle" font-weight="bold">LA</text>
+  <circle cx="200" cy="380" r="18" fill="#fff59d" stroke="#333" stroke-width="2"/><text x="200" y="385" text-anchor="middle" font-weight="bold">RL</text>
+  </g>
+  <text x="20" y="150">Right, below</text><text x="20" y="168">the collarbone</text>
+  <text x="530" y="150">Left, below</text><text x="530" y="168">the collarbone</text>
+  <text x="20" y="380">Right lower</text><text x="20" y="398">ribs / abdomen</text><text x="20" y="416">(reference)</text>
+  <text x="350" y="500" text-anchor="middle" font-size="12">Read the RA / LA / RL labels on the lead snaps; cable colours vary by kit.</text>
+</svg>

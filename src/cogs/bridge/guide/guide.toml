@@ -1,0 +1,40 @@
+# Sensor guide for the bridge cog (WeftOS ADR-104 sensor-guide format, schema 1).
+schema = 1
+title = "Sensor Bridge on a Cognitum Seed"
+sensor = "External WeftOS nodes (Pi 5, Orange Pi) over HTTP"
+cog = "bridge"
+cog_version = "0.2.0"
+medical = false
+pages = ["start", "setup", "protocol", "troubleshoot", "api", "security", "glossary"]
+
+[links]
+seed_api = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+sources = "protocol"
+readings = "troubleshoot"
+
+[[flow]]
+name = "External node"
+detail = "Pi 5 / Orange Pi runs our cog"
+
+[[flow]]
+name = "weft-bridge-send"
+detail = "polls the cog export"
+
+[[flow]]
+name = "POST /ingest"
+detail = "reading over HTTP :8048"
+
+[[flow]]
+name = "bridge cog"
+detail = "per-source store id"
+
+[[flow]]
+name = "Seed store"
+detail = "ingest over loopback"
+
+[[flow]]
+name = "Seed memory"
+detail = "witnessed, searchable"

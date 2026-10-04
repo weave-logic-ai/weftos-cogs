@@ -1,0 +1,96 @@
+# Sensor guide for hlk-as201 (WeftOS ADR-104 sensor-guide format, schema 1).
+# Pages are Markdown files next to this one (guide/<page>.md). A fenced ```diagram block
+# (header | wiring | flow) embeds a diagram drawn from the tables below.
+
+schema = 1
+title = "HLK-AS201 Attitude / IMU Sensor on a Cognitum Seed"
+sensor = "Hi-Link HLK-AS201 9/10-axis attitude sensor (3-axis accel + 3-axis gyro + 3-axis magnetometer; some variants add a barometer)"
+cog = "hlk-as201"
+cog_version = "0.1.0"
+medical = false
+pages = ["start", "sensor", "wiring", "setup", "troubleshoot", "api"]
+
+# Checklist step ids the companion app links to a page.
+[links]
+seed_api = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+uart = "wiring"
+frame = "troubleshoot"
+
+# The Seed's 40-pin header: pins this sensor uses, and pins to stay away from.
+[header]
+board = "Raspberry Pi Zero 2 W / Pi 5 (Cognitum Seed)"
+orientation = "Hold it with the 40-pin header along the TOP edge and the ports along the BOTTOM, micro-SD at the left. Pin 1 (3.3 V) is the LEFT pin of the INNER row (the row nearer the chip); the OUTER row (nearer the top edge) is the even pins 2-40."
+use = [
+  { pin = 1, name = "3V3", to = "sensor VCC", color = "red" },
+  { pin = 6, name = "GND", to = "sensor GND", color = "black" },
+  { pin = 8, name = "GPIO14 TXD", to = "sensor RX (config only)", color = "yellow" },
+  { pin = 10, name = "GPIO15 RXD", to = "sensor TX (data)", color = "green" },
+]
+avoid = [
+  { pin = 2, why = "5 V: the AS201 is 3.3 V; the Pi GPIO is not 5 V tolerant" },
+  { pin = 4, why = "5 V" },
+]
+
+[[parts]]
+id = "imu"
+name = "HLK-AS201"
+detail = "9/10-axis IMU"
+pins = ["UART_TX", "UART_RX", "VCC33", "GND"]
+
+[[parts]]
+id = "seed"
+name = "Seed header"
+detail = "Pi UART, /dev/serial0"
+pins = ["1 3V3", "6 GND", "8 TXD", "10 RXD"]
+
+[[wires]]
+from = "imu.VCC33"
+to = "seed.1 3V3"
+color = "red"
+label = "3.3 V"
+
+[[wires]]
+from = "imu.GND"
+to = "seed.6 GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "imu.UART_TX"
+to = "seed.10 RXD"
+color = "green"
+label = "IMU data"
+
+[[wires]]
+from = "imu.UART_RX"
+to = "seed.8 TXD"
+color = "yellow"
+label = "config only"
+
+# Signal flow, left to right.
+[[flow]]
+name = "IMU"
+detail = "HLK-AS201"
+
+[[flow]]
+name = "accel/gyro/mag"
+detail = "3 axes each"
+
+[[flow]]
+name = "UART 115200 8N1"
+detail = "3.3 V TTL"
+
+[[flow]]
+name = "FA FB..FC FD frame"
+detail = "42-byte ten-axis report"
+
+[[flow]]
+name = "hlk-as201 cog"
+detail = "decode + motion"
+
+[[flow]]
+name = "roll/pitch/yaw"
+detail = "orientation out"

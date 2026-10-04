@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 640" font-family="Helvetica, Arial, sans-serif" font-size="14">
+  <title>SEN0213 ECG to ADS1115 to Cognitum Seed (Pi Zero 2 W) wiring</title>
+  <rect width="1100" height="640" fill="#ffffff"/>
+  <text x="550" y="32" text-anchor="middle" font-size="20" font-weight="bold">SEN0213 ECG → ADS1115 (I2C ADC) → Seed / Pi Zero 2 W header</text>
+  <text x="550" y="54" text-anchor="middle" fill="#b00020" font-weight="bold">Power the ADS1115 and the SEN0213 from 3.3 V (pin 1), never 5 V: the Pi's GPIO pins are not 5 V tolerant.</text>
+
+  <!-- Electrodes -->
+  <g>
+    <circle cx="70" cy="160" r="22" fill="#fdf1d6" stroke="#333"/><text x="70" y="165" text-anchor="middle" font-weight="bold">RA</text>
+    <circle cx="70" cy="240" r="22" fill="#fdf1d6" stroke="#333"/><text x="70" y="245" text-anchor="middle" font-weight="bold">LA</text>
+    <circle cx="70" cy="320" r="22" fill="#fdf1d6" stroke="#333"/><text x="70" y="325" text-anchor="middle" font-weight="bold">RL</text>
+    <text x="70" y="370" text-anchor="middle">gel pads</text>
+    <text x="70" y="388" text-anchor="middle">(see placement)</text>
+    <path d="M92 160 C140 160 140 240 175 240" fill="none" stroke="#555" stroke-width="2"/>
+    <path d="M92 240 L175 240" fill="none" stroke="#555" stroke-width="2"/>
+    <path d="M92 320 C140 320 140 240 175 240" fill="none" stroke="#555" stroke-width="2"/>
+    <text x="133" y="228" text-anchor="middle" font-size="12">3-lead cable</text>
+  </g>
+
+  <!-- SEN0213 -->
+  <rect x="175" y="150" width="200" height="190" rx="8" fill="#e8f0fe" stroke="#1a3d8f" stroke-width="2"/>
+  <text x="275" y="178" text-anchor="middle" font-weight="bold">DFRobot SEN0213</text>
+  <text x="275" y="196" text-anchor="middle" font-size="12">AD8232 ECG front end</text>
+  <text x="186" y="248" font-size="11">◀ 3.5 mm jack</text>
+  <text x="275" y="218" text-anchor="middle" font-size="12">output 0–3.3 V, ~1.5 V idle</text>
+  <text x="362" y="262" text-anchor="end">A (signal)</text>
+  <text x="362" y="292" text-anchor="end">+ (VCC)</text>
+  <text x="362" y="322" text-anchor="end">− (GND)</text>
+  <text x="275" y="356" text-anchor="middle" font-size="12">Gravity PH2.0-3P</text>
+
+  <!-- ADS1115 -->
+  <rect x="520" y="150" width="200" height="270" rx="8" fill="#eaf7ea" stroke="#1d6b2a" stroke-width="2"/>
+  <text x="620" y="178" text-anchor="middle" font-weight="bold">ADS1115</text>
+  <text x="620" y="196" text-anchor="middle" font-size="12">16-bit ADC, I2C 0x48</text>
+  <text x="532" y="262">A0</text>
+  <text x="532" y="292">VDD</text>
+  <text x="532" y="322">GND</text>
+  <text x="708" y="292" text-anchor="end">VDD</text>
+  <text x="708" y="322" text-anchor="end">GND</text>
+  <text x="708" y="352" text-anchor="end">SDA</text>
+  <text x="708" y="382" text-anchor="end">SCL</text>
+  <text x="532" y="382">ADDR</text>
+  <text x="620" y="410" text-anchor="middle" font-size="11">VDD/GND appear once on a breakout: wire both sides to them</text>
+
+  <!-- Sensor to ADC -->
+  <line x1="375" y1="257" x2="520" y2="257" stroke="#1565c0" stroke-width="4"/>
+  <text x="447" y="249" text-anchor="middle" fill="#1565c0" font-size="12">signal → A0</text>
+  <line x1="375" y1="287" x2="520" y2="287" stroke="#d32f2f" stroke-width="4"/>
+  <text x="447" y="280" text-anchor="middle" fill="#d32f2f" font-size="12">3.3 V</text>
+  <line x1="375" y1="317" x2="520" y2="317" stroke="#212121" stroke-width="4"/>
+  <text x="447" y="310" text-anchor="middle" font-size="12">GND</text>
+  <path d="M520 377 L495 377 L495 317" fill="none" stroke="#212121" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="470" y="352" text-anchor="end" font-size="11">ADDR → GND</text>
+  <text x="470" y="366" text-anchor="end" font-size="11">(= 0x48)</text>
+
+  <!-- Pi header -->
+  <rect x="860" y="150" width="200" height="270" rx="8" fill="#fde8e8" stroke="#8f1a1a" stroke-width="2"/>
+  <text x="960" y="178" text-anchor="middle" font-weight="bold">Seed (Pi Zero 2 W)</text>
+  <text x="960" y="196" text-anchor="middle" font-size="12">40-pin header, I2C bus 1</text>
+  <text x="872" y="292">pin 1  3V3</text>
+  <text x="872" y="322">pin 6  GND</text>
+  <text x="872" y="352">pin 3  GPIO2 SDA</text>
+  <text x="872" y="382">pin 5  GPIO3 SCL</text>
+  <text x="960" y="410" text-anchor="middle" font-size="11">NOT pin 2 or 4 (those are 5 V)</text>
+
+  <!-- 4-wire adapter -->
+  <line x1="720" y1="287" x2="860" y2="287" stroke="#d32f2f" stroke-width="4"/>
+  <line x1="720" y1="317" x2="860" y2="317" stroke="#212121" stroke-width="4"/>
+  <line x1="720" y1="347" x2="860" y2="347" stroke="#f9a825" stroke-width="4"/>
+  <line x1="720" y1="377" x2="860" y2="377" stroke="#2e7d32" stroke-width="4"/>
+  <text x="790" y="273" text-anchor="middle" font-size="12">4-wire adapter</text>
+
+  <!-- Legend -->
+  <g font-size="12">
+    <rect x="175" y="470" width="885" height="142" rx="8" fill="#fafafa" stroke="#bbb"/>
+    <text x="195" y="496" font-weight="bold">Wire</text><text x="335" y="496" font-weight="bold">From</text><text x="555" y="496" font-weight="bold">To</text><text x="805" y="496" font-weight="bold">Note</text>
+    <line x1="195" y1="512" x2="225" y2="512" stroke="#d32f2f" stroke-width="4"/><text x="235" y="516">3.3 V</text><text x="335" y="516">Pi pin 1</text><text x="555" y="516">ADS1115 VDD and SEN0213 +</text><text x="805" y="516">3.3 V only</text>
+    <line x1="195" y1="534" x2="225" y2="534" stroke="#212121" stroke-width="4"/><text x="235" y="538">GND</text><text x="335" y="538">Pi pin 6</text><text x="555" y="538">ADS1115 GND, ADDR, SEN0213 −</text><text x="805" y="538">common ground</text>
+    <line x1="195" y1="556" x2="225" y2="556" stroke="#f9a825" stroke-width="4"/><text x="235" y="560">SDA</text><text x="335" y="560">Pi pin 3 (GPIO2)</text><text x="555" y="560">ADS1115 SDA</text><text x="805" y="560">Pi has 1.8 kΩ pull-ups</text>
+    <line x1="195" y1="578" x2="225" y2="578" stroke="#2e7d32" stroke-width="4"/><text x="235" y="582">SCL</text><text x="335" y="582">Pi pin 5 (GPIO3)</text><text x="555" y="582">ADS1115 SCL</text><text x="805" y="582">I2C clock</text>
+    <line x1="195" y1="600" x2="225" y2="600" stroke="#1565c0" stroke-width="4"/><text x="235" y="604">signal</text><text x="335" y="604">SEN0213 A</text><text x="555" y="604">ADS1115 A0</text><text x="805" y="604">sensor → ADC only, not to the Pi</text>
+  </g>
+</svg>

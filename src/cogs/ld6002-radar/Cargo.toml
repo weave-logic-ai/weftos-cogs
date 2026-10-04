@@ -1,0 +1,31 @@
+[package]
+name = "cog-ld6002-radar"
+version = "0.2.0"
+edition = "2021"
+description = "HLK-LD6002 60 GHz radar reader: presence, distance, target x/y, heart and breathing rate over UART, fail-honest"
+
+[[bin]]
+name = "cog-ld6002-radar"
+path = "src/main.rs"
+
+# `serialport` follows health-monitor's esp32-uart precedent, but is not optional here:
+# reading the radar's UART is the whole cog. default-features = false drops the libudev
+# port-enumeration feature, so the Linux cross-builds need no extra system library; the
+# cog opens a caller-supplied device path and never enumerates ports.
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serialport = { version = "4", default-features = false }
+
+# Off by default: the default build has the same code and dependencies without it.
+# `spatial-evidence` adds the spatial.evidence.v1 adapter (src/spatial.rs, ADR-157).
+[features]
+spatial-evidence = []
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

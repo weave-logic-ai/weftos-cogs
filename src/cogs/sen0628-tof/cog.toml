@@ -1,0 +1,123 @@
+[cog]
+id = "sen0628-tof"
+name = "SEN0628 Matrix ToF"
+version = "0.1.0"
+category = "presence"
+description = "Reads a DFRobot SEN0628 8x8 matrix time-of-flight sensor (VL53L7CX + RP2040, 20-3500 mm, 60 deg FOV) over I2C on the Seed's GPIO header. Reports the nearest object and its zone, the valid-zone share, frame-to-frame motion, presence against a learned background, left/middle/right sector distances and per-zone noise, and exports raw depth frames."
+binary = "cog-sen0628-tof-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between reports while running continuously"
+default = 1
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.window]
+type = "integer"
+label = "Capture window (--once)"
+description = "Seconds of frames captured by a single --once run (after the ~5 s mode set-up)"
+default = 3
+min = 1
+max = 8
+unit = "seconds"
+cli_arg = "--window"
+
+[config.mode]
+type = "select"
+label = "Matrix mode"
+description = "8x8 (64 zones) or 4x4 (16 zones, wider zones)"
+default = "8"
+options = ["8", "4"]
+cli_arg = "--mode"
+
+[config.rate_hz]
+type = "integer"
+label = "Frame rate"
+description = "Frames read per second (the sensor ranges at 15-60 Hz internally)"
+default = 10
+min = 1
+max = 15
+unit = "Hz"
+cli_arg = "--rate-hz"
+
+[config.i2c_bus]
+type = "integer"
+label = "I2C bus"
+description = "Linux I2C bus number (/dev/i2c-N); 1 is the GPIO header bus"
+default = 1
+min = 0
+max = 9
+cli_arg = "--i2c-bus"
+advanced = true
+
+[config.i2c_addr]
+type = "integer"
+label = "Sensor address"
+description = "7-bit I2C address set on the board: 48 (0x30), 49 (0x31), 50 (0x32), 51 (0x33, factory default)"
+default = 51
+min = 48
+max = 51
+cli_arg = "--i2c-addr"
+
+[config.max_range_mm]
+type = "integer"
+label = "Max valid range"
+description = "Readings above this (or 0) count as no target"
+default = 3500
+min = 100
+max = 4000
+unit = "mm"
+cli_arg = "--max-range-mm"
+advanced = true
+
+[config.presence_mm]
+type = "integer"
+label = "Presence margin"
+description = "A zone is occupied when it is this much closer than the learned background"
+default = 150
+min = 30
+max = 1000
+unit = "mm"
+cli_arg = "--presence-mm"
+
+[config.learn_seconds]
+type = "integer"
+label = "Background learning"
+description = "Seconds of empty-room frames used to learn the background after start"
+default = 5
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--learn-seconds"
+
+[config.api_bind]
+type = "string"
+label = "Export address"
+description = "host:port of the read-only depth-frame export used by weft-tof-scope. 127.0.0.1:8047 keeps it on the Seed"
+default = "0.0.0.0:8047"
+cli_arg = "--api-bind"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use a synthetic room with a walking person instead of the sensor (testing without hardware)"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8047
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--once --mode 4", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

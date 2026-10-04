@@ -1,0 +1,92 @@
+# Sensor guide for rd-03e (WeftOS ADR-104 sensor-guide format, schema 1).
+# Pages are Markdown files next to this one (guide/<page>.md). A fenced ```diagram block
+# (header | wiring | flow) embeds a diagram drawn from the tables below.
+
+schema = 1
+title = "RD-03E 24 GHz Presence Radar on a Cognitum Seed"
+sensor = "Ai-Thinker RD-03E 24 GHz FMCW presence + ranging radar (S3KM111L SoC)"
+cog = "rd-03e"
+cog_version = "0.1.0"
+medical = false
+pages = ["start", "sensor", "wiring", "setup", "troubleshoot", "api"]
+
+# Checklist step ids the companion app links to a page.
+[links]
+seed_api = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+uart = "wiring"
+present = "troubleshoot"
+
+# The Seed's 40-pin header: pins this sensor uses, and pins to stay away from.
+[header]
+board = "Raspberry Pi Zero 2 W / Pi 5 (Cognitum Seed)"
+orientation = "Hold it with the 40-pin header along the TOP edge and the ports along the BOTTOM, micro-SD at the left. Pin 1 (3.3 V) is the LEFT pin of the INNER row (the row nearer the chip); the OUTER row (nearer the top edge) is the even pins 2-40."
+use = [
+  { pin = 1, name = "3V3", to = "module VCC", color = "red" },
+  { pin = 6, name = "GND", to = "module GND", color = "black" },
+  { pin = 8, name = "GPIO14 TXD", to = "module RX (config only)", color = "yellow" },
+  { pin = 10, name = "GPIO15 RXD", to = "module TX (data)", color = "green" },
+]
+avoid = [
+  { pin = 2, why = "5 V: the RD-03E is 3.3 V; the Pi GPIO is not 5 V tolerant" },
+  { pin = 4, why = "5 V" },
+]
+
+[[parts]]
+id = "module"
+name = "RD-03E"
+detail = "24 GHz radar"
+pins = ["TX", "RX", "VCC", "GND"]
+
+[[parts]]
+id = "seed"
+name = "Seed header"
+detail = "Pi UART, /dev/serial0"
+pins = ["1 3V3", "6 GND", "8 TXD", "10 RXD"]
+
+[[wires]]
+from = "module.VCC"
+to = "seed.1 3V3"
+color = "red"
+label = "3.3 V"
+
+[[wires]]
+from = "module.GND"
+to = "seed.6 GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "module.TX"
+to = "seed.10 RXD"
+color = "green"
+label = "radar data"
+
+[[wires]]
+from = "module.RX"
+to = "seed.8 TXD"
+color = "yellow"
+label = "config only"
+
+# Signal flow, left to right.
+[[flow]]
+name = "Radar"
+detail = "24 GHz FMCW"
+
+[[flow]]
+name = "UART"
+detail = "256000 8N1"
+
+[[flow]]
+name = "5-byte frame"
+detail = "AA..55"
+
+[[flow]]
+name = "rd-03e cog"
+detail = "decode + rate"
+
+[[flow]]
+name = "Outputs"
+detail = "present + distance_cm"

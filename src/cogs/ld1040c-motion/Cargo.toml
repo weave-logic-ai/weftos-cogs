@@ -1,0 +1,31 @@
+[package]
+name = "cog-ld1040c-motion"
+version = "0.1.0"
+edition = "2021"
+description = "HLK-LD1040C 10.525 GHz Doppler motion radar: reads the OUT digital line over a Pi GPIO and reports presence, motion events, active fraction and quiet time per window; optional best-effort UART telemetry. Fail-honest on no source."
+
+[[bin]]
+name = "cog-ld1040c-motion"
+path = "src/main.rs"
+
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# The optional UART telemetry path configures a raw tty via libc ioctls, following
+# rd-03e/hlk-as201's src/serial.rs (termios2 on Linux, IOSSIOSPEED on macOS).
+libc = "0.2"
+base64 = "0.22"
+
+# The primary input is the OUT pin, read as a GPIO input line over the Linux character
+# device (/dev/gpiochipN). gpio-cdev is pure Rust (no system libgpiod) and is only pulled
+# in on Linux, so a host `cargo check` on macOS compiles the sim/UART paths without it.
+[target.'cfg(target_os = "linux")'.dependencies]
+gpio-cdev = "0.6"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

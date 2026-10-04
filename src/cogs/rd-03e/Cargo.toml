@@ -1,0 +1,28 @@
+[package]
+name = "cog-rd-03e"
+version = "0.1.0"
+edition = "2021"
+description = "Ai-Thinker RD-03E 24 GHz FMCW presence + ranging radar over UART (256000 8N1): target present, distance in cm, detection rate; fail-honest on no source"
+
+[[bin]]
+name = "cog-rd-03e"
+path = "src/main.rs"
+
+[dependencies]
+cog-sensor-sources = { path = "../../../crates/cog-sensor-sources" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libc = "0.2"
+base64 = "0.22"
+
+# Off by default: the default build has the same code and dependencies without it.
+# `spatial-evidence` adds the spatial.evidence.v1 adapter (src/spatial.rs, guide api.md).
+[features]
+spatial-evidence = []
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,111 @@
+[cog]
+id = "sen0213-ecg"
+name = "SEN0213 ECG"
+version = "0.1.2"
+category = "health"
+description = "Reads a DFRobot SEN0213 (AD8232) single-lead ECG through an ADS1115 I2C ADC on the Seed's GPIO header. Exports the raw waveform and a filtered waveform, detects R-peaks (Pan-Tompkins), and reports heart rate, RR intervals, SDNN, RMSSD and a signal-quality score. Flags leads-off, saturation and a flat signal instead of guessing. Not a medical device."
+binary = "cog-sen0213-ecg-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between reports while running continuously"
+default = 5
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.window]
+type = "integer"
+label = "Capture window (--once)"
+description = "Seconds of ECG captured by a single --once run"
+default = 10
+min = 3
+max = 12
+unit = "seconds"
+cli_arg = "--window"
+
+[config.sample_rate]
+type = "integer"
+label = "Sample rate"
+description = "ECG samples per second read from the ADC"
+default = 250
+min = 100
+max = 500
+unit = "Hz"
+cli_arg = "--sample-rate"
+
+[config.i2c_bus]
+type = "integer"
+label = "I2C bus"
+description = "Linux I2C bus number (/dev/i2c-N); 1 is the GPIO header bus"
+default = 1
+min = 0
+max = 9
+cli_arg = "--i2c-bus"
+advanced = true
+
+[config.i2c_addr]
+type = "integer"
+label = "ADS1115 address"
+description = "7-bit I2C address: 72 (0x48, ADDR to GND), 73 (0x49), 74 (0x4A), 75 (0x4B)"
+default = 72
+min = 72
+max = 75
+cli_arg = "--i2c-addr"
+advanced = true
+
+[config.channel]
+type = "integer"
+label = "ADC channel"
+description = "ADS1115 input the SEN0213 signal wire is on (0 = A0)"
+default = 0
+min = 0
+max = 3
+cli_arg = "--channel"
+
+[config.mains_hz]
+type = "integer"
+label = "Mains notch"
+description = "Power-line frequency to notch out: 60 (Americas), 50 (Europe/Asia), 0 to disable"
+default = 60
+min = 0
+max = 60
+unit = "Hz"
+cli_arg = "--mains-hz"
+
+[config.api_bind]
+type = "string"
+label = "Export address"
+description = "host:port of the read-only raw/processed signal export used by weft-ecg-scope. 127.0.0.1:8046 keeps it on the Seed"
+default = "0.0.0.0:8046"
+cli_arg = "--api-bind"
+advanced = true
+
+[config.emit_samples]
+type = "boolean"
+label = "Samples in output"
+description = "Include the raw and filtered sample arrays in each stdout report (large; off by default)"
+default = false
+cli_arg = "--emit-samples"
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use a synthetic 72 bpm ECG instead of the ADC (for testing without hardware)"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8046
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --emit-samples", "--once --simulate", "--once --simulate --emit-samples", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

@@ -1,0 +1,74 @@
+[cog]
+id = "mentra-live"
+name = "Mentra Live Glasses (companion bridge)"
+version = "0.1.0"
+category = "wearable"
+description = "Companion-side bridge that lets a pair of Mentra Live smart glasses join the mesh as a node. The glasses run Android (the MentraOS ASG client) and cannot run a cog themselves, so this cog runs on a companion that can reach them over ADB (USB, or ADB-over-TCP/Wi-Fi) and reports their liveness. Each interval it reads presence (device reachable), battery (level, charging state, plug type, pack temperature and voltage) and link health (ADB round-trip time), emits them as a store vector, and posts a fleet heartbeat so the glasses show up as an online node. Telemetry-first by design; HUD rendering, sensors and audio are built on top of this node once it is joined. Fail-honest: with no ADB or no device it reports no_source and keeps the node offline rather than faking liveness."
+binary = "cog-mentra-live-arm64"
+hardware_requirement = ["v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Heartbeat interval"
+description = "Seconds between telemetry polls / fleet heartbeats while running continuously"
+default = 5
+min = 1
+max = 120
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.serial]
+type = "string"
+label = "ADB serial"
+description = "ADB device serial (from `adb devices`) when the glasses are on USB. Blank autodetects the first attached device."
+default = ""
+cli_arg = "--serial"
+
+[config.addr]
+type = "string"
+label = "ADB-over-TCP address"
+description = "ip:port of the glasses for ADB-over-Wi-Fi (e.g. 192.168.1.50:5555). The cog runs `adb connect` to it first. Takes precedence over --serial."
+default = ""
+cli_arg = "--addr"
+
+[config.node_id]
+type = "string"
+label = "Node id"
+description = "Fleet node id the glasses join as"
+default = "mentra-01"
+cli_arg = "--node-id"
+
+[config.host]
+type = "string"
+label = "WeftOS host"
+description = "Base URL of the weft-cog-host that receives the fleet heartbeat (its /fleet/heartbeat endpoint). Defaults to the WEFTOS_HOST env var, else http://127.0.0.1:9480."
+default = ""
+cli_arg = "--host"
+advanced = true
+
+[config.adb]
+type = "string"
+label = "adb path"
+description = "Path to the adb binary. Blank uses the ADB env var, then PATH, then the Android SDK platform-tools location."
+default = ""
+cli_arg = "--adb"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Use synthetic glasses telemetry instead of ADB (for testing without hardware)"
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8061
+bind_loopback_only = false
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--help"]
+max_runtime_secs = 20
+output_limit_bytes = 65536

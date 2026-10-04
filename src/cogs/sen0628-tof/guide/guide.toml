@@ -1,0 +1,107 @@
+# Sensor guide for sen0628-tof (WeftOS ADR-104 sensor-guide format, schema 1).
+# Pages are guide/<page>.md; ```diagram fences embed: header | wiring | flow | grid.
+
+schema = 1
+title = "SEN0628 Matrix ToF on a Cognitum Seed"
+sensor = "DFRobot SEN0628 8x8 matrix ToF (VL53L7CX + RP2040)"
+cog = "sen0628-tof"
+cog_version = "0.1.0"
+medical = false
+pages = ["start", "parts", "wiring", "mounting", "setup", "calibrate", "troubleshoot", "api", "safety", "glossary"]
+
+[links]
+seed_api = "setup"
+cog_installed = "setup"
+cog_running = "setup"
+export = "setup"
+sensor_found = "wiring"
+frames = "troubleshoot"
+valid_zones = "mounting"
+background = "calibrate"
+level = "mounting"
+noise = "calibrate"
+
+[header]
+board = "Raspberry Pi Zero 2 W (Cognitum Seed)"
+orientation = "Header along the top edge, SD card on the left: pin 1 is the top-left pin of the inner row."
+use = [
+  { pin = 1, name = "3V3", to = "SEN0628 + (VCC)", color = "red" },
+  { pin = 3, name = "GPIO2 SDA", to = "SEN0628 D (SDA)", color = "green" },
+  { pin = 5, name = "GPIO3 SCL", to = "SEN0628 C (SCL)", color = "blue" },
+  { pin = 6, name = "GND", to = "SEN0628 - (GND)", color = "black" },
+]
+avoid = [
+  { pin = 2, why = "5 V works for the sensor, but its I2C pull-ups then go to 5 V and the Pi's GPIO is not 5 V tolerant" },
+  { pin = 4, why = "5 V" },
+]
+
+[[parts]]
+id = "sensor"
+name = "DFRobot SEN0628"
+detail = "8x8 ToF, Gravity I2C 4-pin"
+pins = ["+", "-", "C", "D"]
+
+[[parts]]
+id = "seed"
+name = "Seed header"
+detail = "Pi Zero 2 W, I2C bus 1"
+pins = ["1 3V3", "6 GND", "5 SCL", "3 SDA"]
+
+[[wires]]
+from = "sensor.+"
+to = "seed.1 3V3"
+color = "red"
+label = "3.3 V"
+
+[[wires]]
+from = "sensor.-"
+to = "seed.6 GND"
+color = "black"
+label = "GND"
+
+[[wires]]
+from = "sensor.C"
+to = "seed.5 SCL"
+color = "blue"
+label = "SCL"
+
+[[wires]]
+from = "sensor.D"
+to = "seed.3 SDA"
+color = "green"
+label = "SDA"
+
+# The zone map as the sensor sees it (DFRobot: X left->right, Y top->bottom, row-major).
+[grid]
+rows = 8
+cols = 8
+title = "8x8 zones, looking out of the sensor (lens toward the scene)"
+top = "Y0 (top row)"
+bottom = "Y7"
+left = "X0"
+right = "X7"
+note = "Index = y * 8 + x. 4x4 mode uses 16 wider zones (index = y * 4 + x). The FOV is about 60 x 60 deg (90 deg diagonal), so at 2 m each 8x8 zone covers roughly 29 x 29 cm."
+
+[[flow]]
+name = "Scene"
+detail = "20-3500 mm"
+
+[[flow]]
+name = "VL53L7CX"
+detail = "8x8 ToF, 15-60 Hz"
+
+[[flow]]
+name = "RP2040"
+detail = "frames over I2C 0x33"
+
+[[flow]]
+name = "I2C bus 1"
+detail = "Seed header"
+
+[[flow]]
+name = "sen0628-tof cog"
+detail = "nearest, presence, motion, sectors"
+
+[[flow]]
+name = "Outputs"
+detail = "stdout JSON, store vector, :8047 export"
