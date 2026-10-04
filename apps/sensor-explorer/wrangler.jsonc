@@ -21,7 +21,7 @@
   // create sensor-explorer-assets`, (3) uncomment the binding below, (4) `npm run deploy`,
   // (5) upload the binaries to keys matching cog_artifacts.r2_key. The download endpoint streams
   // from R2 the moment ASSETS is bound; until then it serves the inline cog_artifacts.bytes.
-  // "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "sensor-explorer-assets" }],
+  "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "sensor-explorer-assets" }],
   "vars": {
     "EXPLORER_NAME": "WeftOS Sensor Explorer"
   }
