@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "source": "local",
+  "generated": "2026-10-04",
+  "cogs": [
+    {
+      "id": "bridge",
+      "name": "Sensor Bridge",
+      "category": "network",
+      "version": "0.1.0",
+      "description": "Receives sensor readings from external WeftOS nodes (a Pi 5, an Orange Pi) and writes them into the Seed store, so remote sensing joins the Seed's memory. Readings come from weft-bridge-send; each source gets its own store id. COG-007.",
+      "store_id": "30",
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8048,
+      "binary": "cog-bridge-arm",
+      "maps_to": []
+    },
+    {
+      "id": "catalog",
+      "name": "Hardware Catalog",
+      "category": "app",
+      "version": "0.1.0",
+      "description": "Serves the WeftOS hardware-catalog browse page (Projects -> Modules -> Chips) and the catalog JSON over HTTP, so the appliance offers the catalog on the mesh. Embeds a snapshot of catalog.json and a self-contained viewer; no sensor, no store writes.",
+      "store_id": null,
+      "hardware_requirement": [
+        "v0-appliance"
+      ],
+      "bind_port": 8060,
+      "binary": "cog-catalog-arm",
+      "maps_to": []
+    },
+    {
+      "id": "hlk-as201",
+      "name": "Attitude / IMU (HLK-AS201)",
+      "category": "motion",
+      "version": "0.1.0",
+      "description": "Hi-Link HLK-AS201 9/10-axis attitude sensor (3-axis accel + 3-axis gyro + 3-axis magnetometer + barometer; 32-bit DSP) read over a 3.3 V TTL UART at 115200 8N1. Reports orientation (roll/pitch/yaw), acceleration (g), angular rate (deg/s), magnetic field (uT), quaternion, temperature, pressure and height. Protocol CONFIRMED against the Hi-Link AS201 datasheet V1.1 (2025-08-01): FA FB.len.cmd.data.SUM.FC FD framing, cmd 0x00 report with a 42-byte ten-axis payload. The X/Y/Z silkscreen identifies this as an IMU, not a radar.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8051,
+      "binary": "cog-hlk-as201-arm",
+      "maps_to": [
+        "hlk-as201-module",
+        "as201-imu"
+      ]
+    },
+    {
+      "id": "mentra-live",
+      "name": "Mentra Live Glasses (companion bridge)",
+      "category": "bridge",
+      "version": "0.1.0",
+      "description": "Companion-side bridge that lets a pair of Mentra Live smart glasses join the mesh as a node. The glasses run Android (the MentraOS ASG client) and cannot run a cog themselves, so this cog runs on a companion that can reach them over ADB (USB, or ADB-over-TCP/Wi-Fi) and reports their liveness. Each interval it reads presence (device reachable), battery (level, charging state, plug type, pack temperature and voltage) and link health (ADB round-trip time), emits them as a store vector, and posts a fleet heartbeat so the glasses show up as an online node. Telemetry-first by design; HUD rendering, sensors and audio are built on top of this node once it is joined. Fail-honest: with no ADB or no device it reports no_source and keeps the node offline rather than faking liveness.",
+      "store_id": null,
+      "hardware_requirement": [
+        "v0-appliance"
+      ],
+      "bind_port": 8061,
+      "binary": "cog-mentra-live-arm64",
+      "maps_to": [
+        "mentra-live-glasses",
+        "mentra-live-display",
+        "mentra-live-microphone"
+      ]
+    },
+    {
+      "id": "rd-03e",
+      "name": "Presence Radar (RD-03E)",
+      "category": "presence",
+      "version": "0.1.0",
+      "description": "Ai-Thinker RD-03E 24 GHz FMCW presence + ranging radar (S3KM111L SoC) read over a 3.3 V TTL UART at 256000 8N1. The module streams a 5-byte report frame (AA·dist_lo·dist_hi·state·55) on power-up with no configuration needed. Reports whether a target is present, its distance in cm (±5 cm from 30-350 cm, to ~6 m), the per-minute detection rate and the quiet time since the last detection. Frame layout confirmed by community captures; gesture-code meanings (state 2-8) are vendor-specific and reported raw.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8050,
+      "binary": "cog-rd-03e-arm",
+      "maps_to": [
+        "rd-03e-module"
+      ]
+    },
+    {
+      "id": "sen0213-ecg",
+      "name": "SEN0213 ECG",
+      "category": "health",
+      "version": "0.1.2",
+      "description": "Reads a DFRobot SEN0213 (AD8232) single-lead ECG through an ADS1115 I2C ADC on the Seed's GPIO header. Exports the raw waveform and a filtered waveform, detects R-peaks (Pan-Tompkins), and reports heart rate, RR intervals, SDNN, RMSSD and a signal-quality score. Flags leads-off, saturation and a flat signal instead of guessing. Not a medical device.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8046,
+      "binary": "cog-sen0213-ecg-arm",
+      "maps_to": [
+        "sen0213-ecg",
+        "ad8232-board",
+        "ad8232"
+      ]
+    },
+    {
+      "id": "sen0628-tof",
+      "name": "SEN0628 Matrix ToF",
+      "category": "presence",
+      "version": "0.1.0",
+      "description": "Reads a DFRobot SEN0628 8x8 matrix time-of-flight sensor (VL53L7CX + RP2040, 20-3500 mm, 60 deg FOV) over I2C on the Seed's GPIO header. Reports the nearest object and its zone, the valid-zone share, frame-to-frame motion, presence against a learned background, left/middle/right sector distances and per-zone noise, and exports raw depth frames.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8047,
+      "binary": "cog-sen0628-tof-arm",
+      "maps_to": [
+        "sen0628-tof",
+        "dfrobot-sen0628-vl53l7cx",
+        "vl53l7cx"
+      ]
+    },
+    {
+      "id": "sound-detect",
+      "name": "Sound Detector",
+      "category": "presence",
+      "version": "0.1.0",
+      "description": "Detects sound/noise with a KY-038 / LM393 microphone comparator module read through an ADS1115 I2C ADC on the Seed's GPIO header (OUT on A1, so it coexists with the sen0213-ecg cog on A0). Reports whether sound is present, the per-minute event rate, the quiet time since the last event, the activity percentage, level and peak. Tune the module's trimpot (or --threshold) for your room. Works for the common active-high digital OUT and, degraded, for analog-OUT variants.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8049,
+      "binary": "cog-sound-detect-arm",
+      "maps_to": [
+        "ky-038",
+        "inmp441-mic"
+      ]
+    }
+  ]
+}

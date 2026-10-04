@@ -17,7 +17,13 @@
     "db:migrate:pool": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0002_pool.sql",
     "pool:seed:gen": "node scripts/gen-pool-seed.mjs pool.seed.json pool-seed.sql",
     "db:pool": "wrangler d1 execute sensor-explorer --remote --file=./pool-seed.sql",
-    "db:pool:local": "wrangler d1 execute sensor-explorer --local --file=./pool-seed.sql"
+    "db:pool:local": "wrangler d1 execute sensor-explorer --local --file=./pool-seed.sql",
+    "db:migrate:cogs": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0003_cogs_fw_research.sql",
+    "db:migrate:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0003_cogs_fw_research.sql",
+    "cogs:scan": "node scripts/scan-cogs.mjs",
+    "cogs:seed:gen": "node scripts/gen-cogs-seed.mjs cogs.seed.json firmware.seed.json cogs-seed.sql",
+    "db:cogs": "wrangler d1 execute sensor-explorer --remote --file=./cogs-seed.sql",
+    "db:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./cogs-seed.sql"
   },
   "dependencies": {
     "hono": "^4.6.0"

@@ -2,20 +2,17 @@
 // single-response mode). A harness connects here as an MCP tool server and can search, read, browse
 // the tree, get a suggestion for a task, and (with contribute scope) propose a new part.
 
-export interface Env {
-  DB: D1Database;
-  EXPLORER_NAME?: string;
-  BOOTSTRAP_API_KEY?: string;
-}
+import { type Env, expandedSearch, searchPool, searchCogs } from "./search";
+export type { Env };
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 type Scope = "read" | "contribute" | "admin";
 
 const TOOLS = [
   {
     name: "search_sensors",
-    description: "Search the hardware catalog (sensors, modules, chips, projects) by keyword. Returns matching parts with id, type, name, vendor and a one-line summary.",
+    description: "Search the hardware catalog (sensors, modules, chips, projects) by keyword. Query is tokenized and ALL tokens must match (with a substring fallback), so 'QM33120W' matches 'QM33120WTR13'. When the curated catalog is thin, the result also includes matching imported-pool parts (source:'pool') and cog registry hits (source:'cog') so a search never dead-ends.",
     inputSchema: {
       type: "object",
       properties: {
@@ -56,6 +53,16 @@ const TOOLS = [
     },
   },
   {
+    name: "list_cogs",
+    description: "List the cog registry — the installable WeftOS/Cognitum cogs (sensor readers, bridges, apps) and the catalog part ids each works with (maps_to). Use to discover whether a sensor already has a cog.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "find_cog",
+    description: "Find cogs by keyword (cog name, sensor, category). E.g. 'radar', 'ecg', 'ld2450'. Returns the matching cogs and the catalog parts they map to.",
+    inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+  },
+  {
     name: "promote_from_pool",
     description: "Promote a pool part (by MPN) toward the curated catalog — lands as a pending contribution for review. Requires a contribute-scoped API key.",
     inputSchema: { type: "object", properties: { mpn: { type: "string" } }, required: ["mpn"] },
@@ -78,18 +85,16 @@ function text(obj: unknown) {
   return { content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] };
 }
 
+function safeJson(s: any): any {
+  try { return JSON.parse(s); } catch { return s; }
+}
+
 async function callTool(name: string, args: any, env: Env, scope: Scope) {
   const DB = env.DB;
   if (name === "search_sensors") {
     const limit = Math.min(Math.max(1, args.limit || 20), 100);
-    const like = `%${String(args.query || "").toLowerCase()}%`;
-    let sql = "SELECT id,type,name,vendor,kind,category FROM parts WHERE status='published' AND search LIKE ?";
-    const binds: any[] = [like];
-    if (args.type && args.type !== "any") { sql += " AND type=?"; binds.push(args.type); }
-    if (args.kind) { sql += " AND kind=?"; binds.push(args.kind); }
-    sql += " ORDER BY type,name LIMIT ?"; binds.push(limit);
-    const { results } = await DB.prepare(sql).bind(...binds).all();
-    return text({ count: results.length, results });
+    const exp = await expandedSearch(DB, String(args.query || ""), { type: args.type, kind: args.kind, limit });
+    return text(exp);
   }
   if (name === "get_part") {
     const row = await DB.prepare("SELECT data FROM parts WHERE id=?").bind(args.id).first<{ data: string }>();
@@ -118,13 +123,17 @@ async function callTool(name: string, args: any, env: Env, scope: Scope) {
   }
   if (name === "search_pool") {
     const limit = Math.min(Math.max(1, args.limit || 20), 100);
-    const like = `%${String(args.query || "").toLowerCase()}%`;
-    let sql = "SELECT mpn,manufacturer,name,category,price,datasheet FROM pool WHERE search LIKE ?";
-    const binds: any[] = [like];
-    if (args.category) { sql += " AND category=?"; binds.push(args.category); }
-    sql += " ORDER BY manufacturer,mpn LIMIT ?"; binds.push(limit);
-    const { results } = await DB.prepare(sql).bind(...binds).all();
+    const results = await searchPool(DB, String(args.query || ""), args.category, limit);
     return text({ count: results.length, results });
+  }
+  if (name === "list_cogs") {
+    const { results } = await DB.prepare("SELECT id,name,category,version,description,store_id,hardware,bind_port,maps_to,hash FROM cogs ORDER BY name").all();
+    const cogs = (results as any[]).map((r) => ({ ...r, hardware: safeJson(r.hardware), maps_to: safeJson(r.maps_to) }));
+    return text({ count: cogs.length, cogs });
+  }
+  if (name === "find_cog") {
+    const cogs = await searchCogs(DB, String(args.query || ""), 50);
+    return text({ count: cogs.length, cogs });
   }
   if (name === "promote_from_pool") {
     if (scope !== "contribute" && scope !== "admin") return { ...text("promote_from_pool needs a contribute-scoped API key"), isError: true };

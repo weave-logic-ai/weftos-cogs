@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "source": "curated",
+  "generated": "2026-10-03",
+  "firmware": [
+    {
+      "id": "fleet-heartbeat-c6",
+      "name": "Fleet heartbeat / CSI node (ESP32-C6)",
+      "device": "ESP32-C6",
+      "version": "0.1.0",
+      "description": "Wi-Fi fleet node firmware for the ESP32-C6: posts a fleet heartbeat and streams Channel State Information (CSI) for presence/occupancy sensing. Joins the mesh as a node and shows up in FleetView.",
+      "repo": "weftos (crates/clawft-edge-* fleet node)",
+      "maps_to": ["esp32-c6", "seeed-xiao-esp32c6"]
+    },
+    {
+      "id": "clawft-edge-pad",
+      "name": "clawft-edge-pad display firmware (ESP32-S3)",
+      "device": "ESP32-S3 / CrowPanel",
+      "version": "0.1.0",
+      "description": "Touch-display firmware for ESP32-S3 RGB-parallel panels (Elecrow CrowPanel family). esp-hal 1.0 LCD_CAM DPI + esp-rtos/embassy + embedded-graphics; signs as an Inkpad Actor (ADR-025/057). Renders the HUD and reads the capacitive touch panel.",
+      "repo": "weftos crates/clawft-edge-pad",
+      "maps_to": ["esp32-s3-n16r8", "esp32-s3", "elecrow-crowpanel-7", "elecrow-7in-rgb-tft-touch", "node-a1-esp32-s3-wroom-1-n16r8"]
+    },
+    {
+      "id": "weftos-mic-node",
+      "name": "weftos-mic-node (I2S MEMS mic)",
+      "device": "I2S MEMS microphone node",
+      "version": "0.1.0",
+      "description": "Audio node firmware that captures from an I2S MEMS microphone (INMP441-class), runs the voice/VAD gate, and publishes acoustic events to the mesh. Telemetry-first, fail-honest on no audio.",
+      "repo": "weftos mic node",
+      "maps_to": ["inmp441-mic", "inmp441"]
+    },
+    {
+      "id": "cognitum-seed-firmware",
+      "name": "Cognitum Seed firmware",
+      "device": "Cognitum Seed",
+      "version": "0.10.11",
+      "description": "Base firmware for the Cognitum Seed AI appliance (ARM): local inference, vector store, cog host and OTA. Cogs are installed on top over MCP; this is the appliance image the cogs run against.",
+      "repo": "cognitum seed",
+      "maps_to": []
+    }
+  ]
+}

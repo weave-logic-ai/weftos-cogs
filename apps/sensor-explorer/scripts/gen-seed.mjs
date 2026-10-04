@@ -2,17 +2,20 @@
 // with promoted columns (name/vendor/kind/category/search/tags) and the full record in `data`.
 // Usage: node scripts/gen-seed.mjs catalog.seed.json seed.sql
 import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const [, , inPath = "catalog.seed.json", outPath = "seed.sql"] = process.argv;
 const cat = JSON.parse(readFileSync(inPath, "utf8"));
 const q = (s) => "'" + String(s ?? "").replaceAll("'", "''") + "'";
 const hay = (...xs) => xs.flat().filter(Boolean).join(" ").toLowerCase();
+// Stable item hash: wh_ + hex(SHA-256('<type>:<id>'))[:16].
+const itemHash = (type, id) => "wh_" + createHash("sha256").update(`${type}:${id}`).digest("hex").slice(0, 16);
 
 const rows = [];
 function row(id, type, name, vendor, kind, category, tags, search, obj) {
   rows.push(
-    `INSERT OR REPLACE INTO parts (id,type,name,vendor,kind,category,tags,search,data,status,updated) VALUES (` +
-      [q(id), q(type), q(name), q(vendor), q(kind), q(category), q(tags.join(" ")), q(search), q(JSON.stringify(obj)), q("published"), q(cat.generated || "")].join(",") +
+    `INSERT OR REPLACE INTO parts (id,type,name,vendor,kind,category,tags,search,data,status,updated,hash) VALUES (` +
+      [q(id), q(type), q(name), q(vendor), q(kind), q(category), q(tags.join(" ")), q(search), q(JSON.stringify(obj)), q("published"), q(cat.generated || ""), q(itemHash(type, id))].join(",") +
       `);`
   );
 }

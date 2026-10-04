@@ -4,6 +4,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { handleRpc, type Env } from "./mcp";
+import { expandedSearch, searchCogs } from "./search";
 
 type Scope = "read" | "contribute" | "admin";
 
@@ -35,6 +36,10 @@ const INTERFACE_RULES: Array<[string, string[]]> = [
   ["ble", ["ble", "bluetooth"]],
   ["usb", ["usb"]],
 ];
+
+function safeJson(s: any): any {
+  try { return JSON.parse(s); } catch { return s; }
+}
 
 function haystackOf(r: any): string {
   const parts: string[] = [];
@@ -129,21 +134,75 @@ app.get("/api/facets", async (c) => {
   return c.json({ types: arr(typeC), categories: arr(catC), interfaces: arr(ifC), vendors: arr(venC, 30) });
 });
 
+// Expanding search: curated catalog + (when thin) the imported pool + the cog registry, so a query
+// never dead-ends. `cogs` and `pool` entries are labeled with a `source`.
 app.get("/api/search", async (c) => {
-  const q = (c.req.query("q") || "").toLowerCase();
-  const type = c.req.query("type");
+  const q = c.req.query("q") || "";
+  const type = c.req.query("type") || undefined;
   const limit = Math.min(Math.max(1, Number(c.req.query("limit")) || 30), 200);
-  let sql = "SELECT id,type,name,vendor,kind,category FROM parts WHERE status='published' AND search LIKE ?";
-  const binds: any[] = [`%${q}%`];
-  if (type && type !== "any") { sql += " AND type=?"; binds.push(type); }
-  sql += " ORDER BY type,name LIMIT ?"; binds.push(limit);
-  const { results } = await c.env.DB.prepare(sql).bind(...binds).all();
-  return c.json({ count: results.length, results });
+  const exp = await expandedSearch(c.env.DB, q, { type, limit });
+  return c.json(exp);
 });
 
 app.get("/api/parts/:id", async (c) => {
   const row = await c.env.DB.prepare("SELECT data FROM parts WHERE id=?").bind(c.req.param("id")).first<{ data: string }>();
   return row ? c.json(JSON.parse(row.data)) : c.json({ error: "not found" }, 404);
+});
+
+// ---- cog registry ----
+function cogRow(r: any) {
+  return { ...r, hardware: safeJson(r.hardware), maps_to: safeJson(r.maps_to) };
+}
+app.get("/api/cogs", async (c) => {
+  const q = c.req.query("q");
+  if (q) {
+    const cogs = await searchCogs(c.env.DB, q, 100);
+    return c.json({ count: cogs.length, cogs });
+  }
+  const { results } = await c.env.DB.prepare(
+    "SELECT id,name,category,version,description,store_id,hardware,bind_port,maps_to,hash FROM cogs ORDER BY name"
+  ).all();
+  const cogs = (results as any[]).map(cogRow);
+  return c.json({ count: cogs.length, cogs });
+});
+app.get("/api/cogs/:id", async (c) => {
+  const row = await c.env.DB.prepare("SELECT data FROM cogs WHERE id=?").bind(c.req.param("id")).first<{ data: string }>();
+  return row ? c.json(JSON.parse(row.data)) : c.json({ error: "not found" }, 404);
+});
+
+// The cog (if any) and firmware (if any) that map to a given part id.
+async function cogsForPart(env: Env, partId: string) {
+  const { results } = await env.DB.prepare("SELECT data FROM cogs WHERE maps_to LIKE ?").bind(`%"${partId}"%`).all();
+  return (results as any[]).map((r) => JSON.parse(r.data)).filter((c) => (c.maps_to || []).includes(partId));
+}
+async function firmwareForPart(env: Env, partId: string) {
+  const { results } = await env.DB.prepare("SELECT data FROM firmware WHERE maps_to LIKE ?").bind(`%"${partId}"%`).all();
+  return (results as any[]).map((r) => JSON.parse(r.data)).filter((f) => (f.maps_to || []).includes(partId));
+}
+
+// ---- research queue + cog requests (plain writes; no auth, these are user-raised intents) ----
+app.post("/api/research", async (c) => {
+  let b: any = {};
+  try { b = await c.req.json(); } catch {}
+  const refId = String(b.ref_id || b.id || "").trim();
+  if (!refId) return c.json({ error: "ref_id required" }, 400);
+  const refType = String(b.ref_type || "part");
+  const refHash = String(b.ref_hash || "");
+  const note = String(b.note || "");
+  await c.env.DB.prepare(
+    "INSERT INTO research (ref_hash,ref_type,ref_id,note,status,created) VALUES (?,?,?,?, 'queued', ?)"
+  ).bind(refHash, refType, refId, note, new Date().toISOString()).run();
+  return c.json({ ok: true, status: "queued", ref_type: refType, ref_id: refId });
+});
+app.post("/api/cog-request", async (c) => {
+  let b: any = {};
+  try { b = await c.req.json(); } catch {}
+  const partId = String(b.part_id || b.id || "").trim();
+  if (!partId) return c.json({ error: "part_id required" }, 400);
+  await c.env.DB.prepare(
+    "INSERT INTO cog_requests (part_id,part_hash,note,status,created) VALUES (?,?,?, 'requested', ?)"
+  ).bind(partId, String(b.part_hash || ""), String(b.note || ""), new Date().toISOString()).run();
+  return c.json({ ok: true, status: "requested", part_id: partId });
 });
 
 // Full export, so the console/appliance can embed a snapshot.
@@ -173,6 +232,16 @@ app.get("/api/pool/stats", async (c) => {
 });
 
 app.get("/healthz", (c) => c.json({ ok: true }));
+
+// ---- item-detail page (server-rendered, tabbed) ----
+app.get("/part/:id", async (c) => {
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare("SELECT type,hash,data FROM parts WHERE id=?").bind(id).first<{ type: string; hash: string; data: string }>();
+  if (!row) return c.html(PART_NOT_FOUND(id), 404);
+  const part = JSON.parse(row.data);
+  const [cogs, firmware] = await Promise.all([cogsForPart(c.env, id), firmwareForPart(c.env, id)]);
+  return c.html(PART_PAGE(c.env.EXPLORER_NAME || "WeftOS Sensor Explorer", row.type, row.hash || "", part, cogs, firmware));
+});
 
 // ---- rich tree-browse UI ----
 app.get("/", (c) => {
@@ -275,7 +344,10 @@ h1{margin:0;font-size:var(--fs-2xl);font-weight:700;letter-spacing:-.015em}
 .card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .cardhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:var(--r-pill);color:#fff;flex:none}
-.b-module{background:var(--wl)}.b-chip{background:var(--accent)}.b-project{background:var(--green)}.b-pool{background:var(--pool)}
+.b-module{background:var(--wl)}.b-chip{background:var(--accent)}.b-project{background:var(--green)}.b-pool{background:var(--pool)}.b-cog{background:var(--pool)}
+.xgroup{grid-column:1/-1;margin:18px 0 2px;display:flex;align-items:center;gap:10px;color:var(--grey);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.xgroup::after{content:"";flex:1;height:1px;background:var(--line)}
+.maps{font-size:11px;color:var(--pool)}
 .vend{color:var(--grey);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:auto}
 .card h3{margin:0 0 6px;font-size:var(--fs-md);font-weight:600;line-height:1.3}
 .sum{margin:0 0 12px;color:var(--ink-soft);font-size:var(--fs-sm);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -355,6 +427,7 @@ table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft);color:var(-
   </div>
   <div class=seg role=group aria-label="Result source">
     <button id=mode-catalog aria-pressed=true>Catalog <span class=ct id=ct-catalog></span></button>
+    <button id=mode-cogs aria-pressed=false>Cogs <span class=ct id=ct-cogs></span></button>
     <button id=mode-pool aria-pressed=false>Pool <span class=ct id=ct-pool></span></button>
   </div>
   <span id=count role=status aria-live=polite></span>
@@ -378,6 +451,8 @@ var FILTERS={type:{},category:{},interface:{},vendor:{}};
 var Q='',searchIds=null,CAT_READY=false;
 var MODE='catalog';
 var POOL={stats:null,cat:null,results:[],byId:{},loaded:false,loading:false};
+var EXTRA={cogs:[],pool:[],expanded:false};
+var COGS={all:null,results:[],byId:{},loaded:false,loading:false};
 var lastFocus=null;
 
 var CAT_LABELS={'radar/presence':'Radar / Presence','ranging/tof':'Ranging / ToF','thermal':'Thermal','vision/camera':'Vision / Camera','audio/mic':'Audio / Mic','imu/motion':'IMU / Motion','biometric':'Biometric','environmental/gas':'Environmental / Gas','positioning/uwb':'Positioning / UWB','rf/sdr':'RF / SDR','display':'Display','board':'Board','other':'Other'};
@@ -454,13 +529,28 @@ function setCount(txt){document.getElementById('count').textContent=txt;}
 
 function render(){
   if(MODE==='pool'){renderPool();return;}
+  if(MODE==='cogs'){renderCogs();return;}
   var g=document.getElementById('grid');
   if(!CAT_READY){g.setAttribute('aria-busy','true');g.innerHTML=skeletons(8);return;}
   var items=INDEX.filter(passes);
   items.sort(function(a,b){return a.type.localeCompare(b.type)||a.name.localeCompare(b.name);});
   g.setAttribute('aria-busy','false');
-  g.innerHTML=items.length?items.map(cardHTML).join(''):emptyHTML();
-  setCount(nfmt(items.length)+' result'+(items.length===1?'':'s'));
+  var html=items.length?items.map(cardHTML).join(''):'';
+  // Expanding search: surface cog + pool hits so a catalog query never dead-ends.
+  var extra='';
+  if(Q&&EXTRA.cogs&&EXTRA.cogs.length){
+    extra+='<div class=xgroup>Cogs</div>'+EXTRA.cogs.map(cogCardHTML).join('');
+  }
+  if(Q&&EXTRA.pool&&EXTRA.pool.length){
+    extra+='<div class=xgroup>From the parts pool (uncurated)</div>'+EXTRA.pool.map(poolCardHTML).join('');
+  }
+  if(!items.length&&!extra){g.innerHTML=emptyHTML();}
+  else{g.innerHTML=html+extra;}
+  g.setAttribute('aria-busy','false');
+  var extraN=(EXTRA.cogs?EXTRA.cogs.length:0)+(EXTRA.pool?EXTRA.pool.length:0);
+  var msg=nfmt(items.length)+' result'+(items.length===1?'':'s');
+  if(Q&&extraN)msg+=' + '+nfmt(extraN)+' beyond the catalog';
+  setCount(msg);
   renderActive();
   syncTree();
 }
@@ -583,15 +673,69 @@ function syncPoolTree(){
 }
 function selectPoolCat(k){POOL.cat=(POOL.cat===k?null:k);poolSearch();closeDrawerIfMobile();}
 
+/* ---- cogs mode ---- */
+function cogMapsTo(c){return (c.maps_to||c.rec&&c.rec.maps_to)||[];}
+function cogCardHTML(c){
+  var maps=cogMapsTo(c);
+  var sub=(c.category||'')+(c.version?' \\u00b7 v'+c.version:'');
+  return '<article class=card role=button tabindex=0 data-cog="'+esc(c.id)+'" aria-label="'+esc(c.name||c.id)+', cog">'
+    +'<div class=cardhead><span class="badge b-cog">cog</span>'+(sub?'<span class=vend>'+esc(sub)+'</span>':'')+'</div>'
+    +'<h3>'+esc(c.name||c.id)+'</h3>'
+    +(c.description?'<p class=sum>'+esc(trim(c.description,160))+'</p>':'')
+    +'<div class=cardfoot>'+(maps.length?'<span class=maps>works with '+nfmt(maps.length)+' part'+(maps.length===1?'':'s')+'</span>':'<span class=promote>no part yet</span>')+'</div></article>';
+}
+function ensureCogs(cb){
+  if(COGS.loaded){cb&&cb();return;}
+  if(COGS.loading)return;
+  COGS.loading=true;
+  fetch('/api/cogs').then(function(r){return r.json();}).then(function(d){
+    COGS.all=d.cogs||[];COGS.loaded=true;COGS.loading=false;COGS.byId={};
+    COGS.all.forEach(function(c){COGS.byId[c.id]=c;});
+    document.getElementById('ct-cogs').textContent=nfmt(COGS.all.length);
+    cb&&cb();
+  }).catch(function(){COGS.loading=false;});
+}
+function cogFilter(){
+  if(!Q)return COGS.all||[];
+  var ql=Q.toLowerCase();
+  return (COGS.all||[]).filter(function(c){
+    var hay=((c.id||'')+' '+(c.name||'')+' '+(c.category||'')+' '+(c.description||'')+' '+cogMapsTo(c).join(' ')).toLowerCase();
+    return ql.split(/[^a-z0-9]+/).filter(Boolean).every(function(t){return hay.indexOf(t)>=0;});
+  });
+}
+function renderCogs(){
+  var g=document.getElementById('grid');
+  if(!COGS.loaded){g.setAttribute('aria-busy','true');g.innerHTML=skeletons(6);return;}
+  g.setAttribute('aria-busy','false');
+  var items=cogFilter();COGS.results=items;
+  g.innerHTML=items.length?items.map(cogCardHTML).join(''):'<p class=empty><b>No cogs match</b>Try a sensor name, radar, ecg, tof\\u2026</p>';
+  setCount(nfmt(items.length)+' cog'+(items.length===1?'':'s'));
+  renderActive();
+}
+function renderCogsTree(){
+  var cats={};(COGS.all||[]).forEach(function(c){var k=c.category||'other';cats[k]=(cats[k]||0)+1;});
+  var rows=Object.keys(cats).sort().map(function(k){
+    return '<li class=facet style="cursor:default"><span class=fl>'+esc(k)+'</span><span class=fn>'+nfmt(cats[k])+'</span></li>';
+  }).join('');
+  document.getElementById('tree').innerHTML='<div class="sec open"><button class=sechead aria-expanded=true><span class=caret aria-hidden=true>\\u25b8</span>Cog category</button><ul class=facets>'+rows+'</ul></div>';
+}
+
 function setMode(mode){
   if(mode===MODE)return;
   MODE=mode;
   document.getElementById('mode-catalog').setAttribute('aria-pressed',String(mode==='catalog'));
+  document.getElementById('mode-cogs').setAttribute('aria-pressed',String(mode==='cogs'));
   document.getElementById('mode-pool').setAttribute('aria-pressed',String(mode==='pool'));
-  document.getElementById('q').placeholder=mode==='pool'?'Search the imported pool (MPN, maker, category)\\u2026':'Search sensors, chips, projects\\u2026';
+  var ph='Search sensors, chips, projects\\u2026';
+  if(mode==='pool')ph='Search the imported pool (MPN, maker, category)\\u2026';
+  if(mode==='cogs')ph='Search cogs (radar, ecg, tof, a cog name)\\u2026';
+  document.getElementById('q').placeholder=ph;
   if(mode==='pool'){
     ensurePool(function(){renderPoolTree();poolSearch();});
     if(!POOL.loaded){renderActive();}
+  }else if(mode==='cogs'){
+    ensureCogs(function(){renderCogsTree();renderCogs();});
+    if(!COGS.loaded){renderActive();}
   }else{
     renderTree(window.__facets||{});render();
   }
@@ -612,6 +756,22 @@ function openDetail(id){
     if(!p||p.error){var m=BY_ID[id];body.innerHTML=m?detailHTML(m.rec):'<p>Not found.</p>';return;}
     body.innerHTML=detailHTML(p);body.scrollTop=0;document.getElementById('pclose').focus();
   }).catch(function(){var m=BY_ID[id];body.innerHTML=m?detailHTML(m.rec):'<p>Failed to load.</p>';});
+}
+function openCogDetail(id){
+  var c=(COGS.byId&&COGS.byId[id])||null;
+  if(!c){fetch('/api/cogs/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(d){if(d&&!d.error){COGS.byId=COGS.byId||{};COGS.byId[id]=d;openCogDetail(id);}});openPanel();document.getElementById('pbody').innerHTML='<p class=loading>Loading\\u2026</p>';return;}
+  openPanel();
+  var maps=cogMapsTo(c);
+  var h='<div class=phead><span class="badge b-cog">cog</span><span class=vend>'+esc((c.category||'')+(c.version?' \\u00b7 v'+c.version:''))+'</span></div>';
+  h+='<h2 id=ptitle>'+esc(c.name||c.id)+'</h2>';
+  h+='<p class=pid>'+esc(c.id)+'</p>';
+  if(c.description)h+='<p class=psum>'+esc(c.description)+'</p>';
+  var spec={};if(c.bind_port)spec['API port']=c.bind_port;if(c.store_id)spec['Base store id']=c.store_id;if(c.hardware_requirement&&c.hardware_requirement.length)spec['Hardware']=c.hardware_requirement.join(', ');if(c.binary)spec['Binary']=c.binary;
+  h+=specTable(spec);
+  if(maps.length)h+=xref('Works with these parts',maps,nameOf);
+  else h+='<div class=phint>No catalog part maps to this cog yet.</div>';
+  h+='<div class=note>Install on a Seed over MCP: <code>cog install '+esc(c.id)+'</code></div>';
+  document.getElementById('pbody').innerHTML=h;document.getElementById('pbody').scrollTop=0;document.getElementById('pclose').focus();
 }
 function openPoolDetail(mpn){
   var p=POOL.byId[mpn];if(!p){return;}
@@ -665,7 +825,7 @@ function detailHTML(p){
   var vend=vendorOf(p);
   var h='<div class=phead><span class="badge b-'+type+'">'+type+'</span>'+(vend?'<span class=vend>'+esc(vend)+'</span>':'')+'</div>';
   h+='<h2 id=ptitle>'+esc(p.name||p.id)+'</h2>';
-  if(p.id)h+='<p class=pid>'+esc(p.id)+'</p>';
+  if(p.id)h+='<p class=pid>'+esc(p.id)+' \\u00b7 <a href="/part/'+encodeURIComponent(p.id)+'">full page (cog, firmware, research) \\u2197</a></p>';
   if(p.role)h+='<p class=role>'+esc(p.role)+'</p>';
   if(p.summary)h+='<p class=psum>'+esc(p.summary)+'</p>';
   var pills='';(meta.cats||[]).forEach(function(c){pills+='<span class="pill cat">'+esc(labelCat(c))+'</span>';});(meta.ifaces||[]).forEach(function(i){pills+='<span class=pill>'+esc(labelIf(i))+'</span>';});
@@ -692,12 +852,14 @@ function onSearch(e){
 }
 function doSearch(){
   if(MODE==='pool'){poolSearch();return;}
-  if(!Q){searchIds=null;render();return;}
+  if(MODE==='cogs'){renderCogs();return;}
+  if(!Q){searchIds=null;EXTRA={cogs:[],pool:[],expanded:false};render();return;}
   fetch('/api/search?q='+encodeURIComponent(Q.toLowerCase())+'&limit=200').then(function(r){return r.json();}).then(function(d){
-    searchIds={};(d.results||[]).forEach(function(r){searchIds[r.id]=1;});render();
-  }).catch(function(){var ql=Q.toLowerCase();searchIds={};INDEX.forEach(function(m){if(m.hay.indexOf(ql)>=0)searchIds[m.id]=1;});render();});
+    searchIds={};(d.results||[]).forEach(function(r){searchIds[r.id]=1;});
+    EXTRA={cogs:d.cogs||[],pool:d.pool||[],expanded:!!d.expanded};render();
+  }).catch(function(){var ql=Q.toLowerCase();searchIds={};INDEX.forEach(function(m){if(m.hay.indexOf(ql)>=0)searchIds[m.id]=1;});EXTRA={cogs:[],pool:[],expanded:false};render();});
 }
-function clearSearch(){Q='';document.getElementById('q').value='';document.getElementById('qclear').classList.remove('on');if(MODE==='pool'){poolSearch();}else{searchIds=null;render();}}
+function clearSearch(){Q='';document.getElementById('q').value='';document.getElementById('qclear').classList.remove('on');EXTRA={cogs:[],pool:[],expanded:false};if(MODE==='pool'){poolSearch();}else if(MODE==='cogs'){renderCogs();}else{searchIds=null;render();}}
 
 /* ---- drawer ---- */
 function closeDrawerIfMobile(){if(window.matchMedia('(max-width:860px)').matches)setDrawer(false);}
@@ -721,6 +883,8 @@ document.addEventListener('click',function(e){
   }
   var sh=e.target.closest('.sechead');
   if(sh){var sec=sh.parentNode;sec.classList.toggle('open');sh.setAttribute('aria-expanded',String(sec.classList.contains('open')));return;}
+  var ccard=e.target.closest('.card[data-cog]');
+  if(ccard){openCogDetail(ccard.getAttribute('data-cog'));return;}
   var pcard=e.target.closest('.card[data-pool]');
   if(pcard){openPoolDetail(pcard.getAttribute('data-pool'));return;}
   var card=e.target.closest('.card[data-id]');
@@ -739,6 +903,7 @@ document.getElementById('scrim').addEventListener('click',closeDetail);
 document.getElementById('sideback').addEventListener('click',function(){setDrawer(false);});
 document.getElementById('filtbtn').addEventListener('click',function(){setDrawer(!document.body.classList.contains('drawer'));});
 document.getElementById('mode-catalog').addEventListener('click',function(){setMode('catalog');});
+document.getElementById('mode-cogs').addEventListener('click',function(){setMode('cogs');});
 document.getElementById('mode-pool').addEventListener('click',function(){setMode('pool');});
 
 /* ---- boot ---- */
@@ -755,10 +920,194 @@ Promise.all([
   document.getElementById('grid').setAttribute('aria-busy','false');
   document.getElementById('grid').innerHTML='<p class=empty><b>Failed to load catalog</b>Check your connection and reload.</p>';
 });
-/* Prefetch pool count so the toggle shows a number without switching. */
+/* Prefetch pool + cog counts so the toggles show a number without switching. */
 fetch('/api/pool/stats').then(function(r){return r.json();}).then(function(d){
   POOL.stats=d;POOL.loaded=true;document.getElementById('ct-pool').textContent=nfmt(d.total||0);
 }).catch(function(){});
+fetch('/api/cogs').then(function(r){return r.json();}).then(function(d){
+  COGS.all=d.cogs||[];COGS.loaded=true;COGS.byId={};COGS.all.forEach(function(c){COGS.byId[c.id]=c;});
+  document.getElementById('ct-cogs').textContent=nfmt(COGS.all.length);
+}).catch(function(){});
+</script>
+</body></html>`;
+}
+
+// ---- server-rendered item-detail page helpers ----
+function esc(s: any): string {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function vendorOfSrv(r: any): string {
+  return String(r.vendor || r.manufacturer || "").trim();
+}
+function specTableSrv(spec: any): string {
+  if (!spec || typeof spec !== "object") return "";
+  const ks = Object.keys(spec).filter((k) => spec[k] != null && spec[k] !== "");
+  if (!ks.length) return "";
+  return '<table class=spec>' + ks.map((k) => '<tr><th>' + esc(k) + '</th><td>' + esc(spec[k]) + '</td></tr>').join("") + '</table>';
+}
+function listBlockSrv(label: string, arr: any, cls: string): string {
+  if (!Array.isArray(arr) || !arr.length) return "";
+  return '<div class="lb ' + cls + '"><b>' + esc(label) + '</b><ul>' + arr.map((x) => '<li>' + esc(x) + '</li>').join("") + '</ul></div>';
+}
+
+function overviewTab(type: string, hash: string, p: any): string {
+  const vend = vendorOfSrv(p);
+  let h = '<div class=phead><span class="badge b-' + esc(type) + '">' + esc(type) + '</span>' + (vend ? '<span class=vend>' + esc(vend) + '</span>' : '') + '</div>';
+  h += '<h1>' + esc(p.name || p.id) + '</h1>';
+  h += '<p class=pid>' + esc(p.id || "") + '</p>';
+  if (hash) h += '<p class=hash title="stable item hash">' + esc(hash) + '</p>';
+  if (p.role) h += '<p class=role>' + esc(p.role) + '</p>';
+  if (p.summary) h += '<p class=psum>' + esc(p.summary) + '</p>';
+  if (Array.isArray(p.notes)) h += p.notes.map((n: any) => '<div class=note>' + esc(n) + '</div>').join("");
+  h += listBlockSrv("Good for", p.good_for, "good");
+  h += listBlockSrv("Not for", p.not_for, "bad");
+  h += specTableSrv(p.spec);
+  if (p.datasheet) h += '<div class=links><a class=ext href="' + esc(p.datasheet) + '" target=_blank rel=noopener>Datasheet ↗</a></div>';
+  if (Array.isArray(p.buy) && p.buy.length) {
+    h += '<div class=buys>' + p.buy.map((b: any) => '<a class=buy href="' + esc(b.url || "#") + '" target=_blank rel=noopener>' + esc(b.vendor || "Buy") + (b.price ? ' <span class=price>' + esc(b.price) + '</span>' : '') + '</a>').join("") + '</div>';
+  }
+  if (Array.isArray(p.chips) && p.chips.length) h += '<div class=xref><b>Chips on board</b><div class=tags>' + p.chips.map((x: any) => '<span class=tagp>' + esc(x) + '</span>').join("") + '</div></div>';
+  if (Array.isArray(p.modules) && p.modules.length) h += '<div class=xref><b>Modules</b><div class=tags>' + p.modules.map((x: any) => '<span class=tagp>' + esc(x) + '</span>').join("") + '</div></div>';
+  if (Array.isArray(p.pins) && p.pins.length) h += '<div class=xref><b>Pins</b><div class=tags>' + p.pins.map((x: any) => '<span class=tagp>' + esc(x) + '</span>').join("") + '</div></div>';
+  return h;
+}
+
+function cogTab(cogs: any[]): string {
+  if (!cogs.length) {
+    return '<div class=cta><p class=ctatext>No cog maps to this part yet. A cog is the small reader that brings this sensor onto the mesh.</p>' +
+      '<button class=btn id=createcog>Create a cog for this part</button><p class=msg id=cogmsg></p></div>';
+  }
+  return cogs.map((c) => {
+    let h = '<div class=cogcard>';
+    h += '<div class=phead><span class="badge b-cog">cog</span><span class=vend>' + esc(c.category || "") + (c.version ? ' · v' + esc(c.version) : '') + '</span></div>';
+    h += '<h2>' + esc(c.name || c.id) + '</h2><p class=pid>' + esc(c.id) + '</p>';
+    if (c.description) h += '<p class=psum>' + esc(c.description) + '</p>';
+    const spec: any = {};
+    if (c.bind_port) spec["API port"] = c.bind_port;
+    if (c.store_id) spec["Base store id"] = c.store_id;
+    if (Array.isArray(c.hardware_requirement) && c.hardware_requirement.length) spec["Hardware"] = c.hardware_requirement.join(", ");
+    if (c.binary) spec["Binary"] = c.binary;
+    h += specTableSrv(spec);
+    h += '<div class=note>Install on a Seed over MCP: <code>cog install ' + esc(c.id) + '</code> (cog-dev / seed-mcp). The cog then serves its API on port ' + esc(c.bind_port || "?") + '.</div>';
+    h += '</div>';
+    return h;
+  }).join("");
+}
+
+function firmwareTab(fw: any[]): string {
+  if (!fw.length) return '<p class=ctatext>No firmware mapped to this part.</p>';
+  return fw.map((f) => {
+    let h = '<div class=cogcard>';
+    h += '<div class=phead><span class="badge b-fw">firmware</span><span class=vend>' + esc(f.device || "") + (f.version ? ' · v' + esc(f.version) : '') + '</span></div>';
+    h += '<h2>' + esc(f.name || f.id) + '</h2>';
+    if (f.description) h += '<p class=psum>' + esc(f.description) + '</p>';
+    const spec: any = {};
+    if (f.device) spec["Device"] = f.device;
+    if (f.repo) spec["Source"] = f.repo;
+    h += specTableSrv(spec);
+    h += '</div>';
+    return h;
+  }).join("");
+}
+
+function PART_NOT_FOUND(id: string): string {
+  return '<!doctype html><meta charset=utf-8><title>Not found</title><body style="font-family:system-ui;padding:40px"><h1>Part not found</h1><p>No catalog part with id <code>' + esc(id) + '</code>.</p><p><a href="/">← Back to the explorer</a></p></body>';
+}
+
+function PART_PAGE(name: string, type: string, hash: string, part: any, cogs: any[], firmware: any[]): string {
+  const hasCog = cogs.length > 0;
+  const hasFw = firmware.length > 0;
+  const ov = overviewTab(type, hash, part);
+  const cg = cogTab(cogs);
+  const fw = firmwareTab(firmware);
+  const pid = String(part.id || "");
+  return `<!doctype html><html lang=en><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=color-scheme content="light dark">
+<title>${esc(part.name || pid)} — ${esc(name)}</title>
+<style>
+:root{--bg:#f4ede5;--card:#fffdfb;--ink:#20242b;--ink-soft:#4b515b;--grey:#6a6f78;--line:#e3d8cb;--line-soft:#ece3d8;--wl:#4f84d6;--wl-ink:#3a6bb8;--accent:#d97b2b;--green:#2f8b57;--pool:#7a5cc0;--noteb:#fdf4e6;--chip-bg:#f2ebe2;--focus:#2b6fd6;--shadow:rgba(60,45,30,.14);--r:12px;--r-pill:999px}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#17191d;--card:#23272d;--ink:#e8eaed;--ink-soft:#c3c8cf;--grey:#9aa0a8;--line:#33373e;--line-soft:#2b2f35;--wl:#7aa6ec;--wl-ink:#9cc0f5;--accent:#e8a158;--green:#56b882;--pool:#a98bea;--noteb:#2a2519;--chip-bg:#2a2e34;--focus:#8ab4ff;--shadow:rgba(0,0,0,.45)}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--wl-ink);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:820px;margin:0 auto;padding:16px 16px 72px}
+.back{display:inline-block;color:var(--grey);font-size:13px;margin:8px 0 14px}
+.main{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;box-shadow:0 2px 12px var(--shadow)}
+.phead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:var(--r-pill);color:#fff}
+.b-module{background:var(--wl)}.b-chip{background:var(--accent)}.b-project{background:var(--green)}.b-cog{background:var(--pool)}.b-fw{background:#c0527a}
+.vend{color:var(--grey);font-size:12px;margin-left:auto}
+h1{margin:4px 0 2px;font-size:24px;font-weight:700;line-height:1.2}
+h2{margin:2px 0 4px;font-size:18px}
+.pid{font-size:12px;color:var(--grey);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin:0 0 2px}
+.hash{font-size:12px;color:var(--pool);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin:0 0 8px}
+.role{color:var(--grey);margin:0 0 10px;font-size:14px}
+.psum{font-size:14px;margin:6px 0 10px;line-height:1.5}
+.note{background:var(--noteb);border-left:3px solid var(--accent);padding:9px 12px;border-radius:0 6px 6px 0;margin:10px 0;font-size:13px}
+.note code,.pid code{background:var(--chip-bg);padding:1px 6px;border-radius:5px;font-size:12px}
+.lb{margin:12px 0;font-size:13px}.lb ul{margin:5px 0 0;padding-left:18px}.lb.good b{color:var(--green)}.lb.bad b{color:var(--accent)}
+table.spec{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}
+table.spec th{text-align:left;color:var(--grey);font-weight:600;padding:6px 12px 6px 0;vertical-align:top;white-space:nowrap;width:1%}
+table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft)}
+.links{margin:14px 0}.ext,.buy{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--r-pill);font-size:13px;font-weight:600}
+.ext{border:1px solid var(--wl);color:var(--wl-ink)}.buys{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.buy{background:var(--green);color:#fff}.buy .price{color:#fff}
+.xref{margin:16px 0}.xref>b{display:block;color:var(--grey);font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px}.tagp{font-size:11px;padding:3px 9px;border:1px solid var(--line);border-radius:var(--r-pill);color:var(--grey)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:4px 0 18px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--ink-soft);font:600 14px inherit;padding:10px 14px;cursor:pointer;font-family:inherit}
+.tab[aria-selected=true]{color:var(--wl-ink);border-bottom-color:var(--wl)}
+.tabpanel[hidden]{display:none}
+.cogcard{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:14px;background:var(--bg)}
+.cta{text-align:center;padding:20px}.ctatext{color:var(--ink-soft);font-size:14px;margin:0 0 14px}
+.btn{background:var(--wl);color:#fff;border:none;border-radius:var(--r-pill);padding:10px 18px;font:600 14px inherit;cursor:pointer;font-family:inherit}
+.btn:disabled{opacity:.6;cursor:default}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0;padding-top:16px;border-top:1px solid var(--line-soft)}
+.btn.ghost{background:none;color:var(--pool);border:1px solid color-mix(in srgb,var(--pool) 55%,var(--line))}
+.msg{font-size:13px;color:var(--green);margin:10px 0 0;min-height:1em}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+</style></head><body>
+<div class=wrap>
+<a class=back href="/">← ${esc(name)}</a>
+<div class=main>
+<div class=tabs role=tablist>
+  <button class=tab id=t-overview role=tab aria-selected=true aria-controls=p-overview>Overview</button>
+  <button class=tab id=t-cog role=tab aria-selected=false aria-controls=p-cog>Cog${hasCog ? " ✓" : ""}</button>
+  ${hasFw ? '<button class=tab id=t-firmware role=tab aria-selected=false aria-controls=p-firmware>Firmware ✓</button>' : ''}
+</div>
+<div class=tabpanel id=p-overview role=tabpanel aria-labelledby=t-overview>${ov}</div>
+<div class=tabpanel id=p-cog role=tabpanel aria-labelledby=t-cog hidden>${cg}</div>
+${hasFw ? '<div class=tabpanel id=p-firmware role=tabpanel aria-labelledby=t-firmware hidden>' + fw + '</div>' : ''}
+<div class=actions>
+  <button class="btn ghost" id=research>Add to research</button>
+  <span class=msg id=researchmsg></span>
+</div>
+</div>
+</div>
+<script>
+var PART_ID=${JSON.stringify(pid)},PART_HASH=${JSON.stringify(hash)};
+function sel(tab){
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++){
+    var t=tabs[i],on=t.id==='t-'+tab;
+    t.setAttribute('aria-selected',on?'true':'false');
+    var panel=document.getElementById('p-'+t.id.slice(2));
+    if(panel){if(on){panel.removeAttribute('hidden');}else{panel.setAttribute('hidden','');}}
+  }
+}
+var tabEls=document.querySelectorAll('.tab');
+for(var i=0;i<tabEls.length;i++){(function(el){el.addEventListener('click',function(){sel(el.id.slice(2));});})(tabEls[i]);}
+function post(url,body,btn,msgEl,okText){
+  btn.disabled=true;
+  fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();})
+    .then(function(d){msgEl.textContent=d.ok?okText:(d.error||'Failed');if(!d.ok)btn.disabled=false;})
+    .catch(function(){msgEl.textContent='Failed';btn.disabled=false;});
+}
+var rb=document.getElementById('research');
+rb.addEventListener('click',function(){post('/api/research',{ref_type:'part',ref_id:PART_ID,ref_hash:PART_HASH},rb,document.getElementById('researchmsg'),'Added to the research queue.');});
+var cc=document.getElementById('createcog');
+if(cc){cc.addEventListener('click',function(){post('/api/cog-request',{part_id:PART_ID,part_hash:PART_HASH},cc,document.getElementById('cogmsg'),'Cog request recorded.');});}
 </script>
 </body></html>`;
 }
