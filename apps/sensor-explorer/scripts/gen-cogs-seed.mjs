@@ -15,15 +15,18 @@ const fw = JSON.parse(readFileSync(fwPath, "utf8")).firmware || [];
 const rows = [];
 
 for (const c of cogs) {
-  const search = hay(c.id, c.name, c.category, c.description, c.hardware_requirement, c.maps_to, c.binary);
+  // The real sensor name is part of the haystack so searching the product name finds the cog.
+  const search = hay(c.id, c.name, c.sensor_name, c.category, c.description, c.hardware_requirement, c.maps_to, c.binary);
   rows.push(
-    "INSERT OR REPLACE INTO cogs (id,name,category,version,description,store_id,hardware,bind_port,maps_to,search,hash,data) VALUES (" +
+    "INSERT OR REPLACE INTO cogs (id,name,category,version,description,store_id,hardware,bind_port,maps_to,sensor_id,sensor_name,search,hash,data) VALUES (" +
       [
         q(c.id), q(c.name), q(c.category), q(c.version), q(c.description),
         c.store_id == null ? "NULL" : q(c.store_id),
         q(JSON.stringify(c.hardware_requirement || [])),
         c.bind_port == null ? "NULL" : String(c.bind_port),
         q(JSON.stringify(c.maps_to || [])),
+        c.sensor_id == null ? "NULL" : q(c.sensor_id),
+        c.sensor_name == null ? "NULL" : q(c.sensor_name),
         q(search), q(itemHash("cog", c.id)), q(JSON.stringify(c)),
       ].join(",") + ");"
   );

@@ -79,7 +79,7 @@ export async function searchCogs(DB: D1Database, q: string, limit = 20): Promise
   const lim = clampLimit(limit, 20, 100);
   const tokens = tokenize(q);
   const tw = tokensWhere(tokens);
-  const sql = `SELECT id,name,category,version,maps_to,bind_port,hash FROM cogs WHERE (${tw.sql}) ORDER BY name LIMIT ?`;
+  const sql = `SELECT sensor_name,sensor_id,id,name,category,version,maps_to,bind_port,hash FROM cogs WHERE (${tw.sql}) ORDER BY sensor_name IS NULL, sensor_name, name LIMIT ?`;
   const rows = (await DB.prepare(sql).bind(...tw.binds, lim).all()).results as any[];
   return rows.map((r) => ({ ...r, maps_to: safeArr(r.maps_to), source: "cog" }));
 }
@@ -95,7 +95,7 @@ export async function cogsMappedTo(DB: D1Database, partIds: string[]): Promise<a
   if (!ids.length) return [];
   const where = ids.map(() => "maps_to LIKE ?").join(" OR ");
   const binds = ids.map((id) => `%"${id}"%`);
-  const sql = `SELECT id,name,category,version,maps_to,bind_port,hash FROM cogs WHERE ${where} ORDER BY name LIMIT 20`;
+  const sql = `SELECT sensor_name,sensor_id,id,name,category,version,maps_to,bind_port,hash FROM cogs WHERE ${where} ORDER BY sensor_name IS NULL, sensor_name, name LIMIT 20`;
   const rows = (await DB.prepare(sql).bind(...binds).all()).results as any[];
   return rows
     .map((r) => ({ ...r, maps_to: safeArr(r.maps_to), source: "cog" }))

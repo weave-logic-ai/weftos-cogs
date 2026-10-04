@@ -20,6 +20,8 @@
     "db:pool:local": "wrangler d1 execute sensor-explorer --local --file=./pool-seed.sql",
     "db:migrate:cogs": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0003_cogs_fw_research.sql",
     "db:migrate:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0003_cogs_fw_research.sql",
+    "db:migrate:cogsensor": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0004_cog_sensor_name.sql",
+    "db:migrate:cogsensor:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0004_cog_sensor_name.sql",
     "cogs:scan": "node scripts/scan-cogs.mjs",
     "cogs:seed:gen": "node scripts/gen-cogs-seed.mjs cogs.seed.json firmware.seed.json cogs-seed.sql",
     "db:cogs": "wrangler d1 execute sensor-explorer --remote --file=./cogs-seed.sql",

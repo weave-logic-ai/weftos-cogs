@@ -13,7 +13,9 @@ const [, , cogsDirArg, catPath = "catalog.seed.json", outPath = "cogs.seed.json"
 const cogsDir = cogsDirArg || join(homedir(), "local-cogs");
 
 // Which catalog part(s) each cog works with. Verified against the catalog below; a cog may map to
-// nothing (network/app cogs) and still appear in the registry.
+// nothing (network/app cogs) and still appear in the registry. The FIRST mapped entry that is a
+// catalog module becomes the cog's primary sensor (its real product name), so order matters:
+// put the module the cog actually reads first.
 const MAPS_TO = {
   "rd-03e": ["rd-03e-module"],
   "hlk-as201": ["hlk-as201-module", "as201-imu"],
@@ -21,6 +23,9 @@ const MAPS_TO = {
   "sen0213-ecg": ["sen0213-ecg", "ad8232-board", "ad8232"],
   "sound-detect": ["ky-038", "inmp441-mic"],
   "mentra-live": ["mentra-live-glasses", "mentra-live-display", "mentra-live-microphone"],
+  "ld2450-radar": ["hlk-ld2450"],
+  "ld6002-radar": ["hlk-ld6002", "hlk-ld6002b"],
+  "sensor-ota-push": [],
   "bridge": [],
   "catalog": [],
 };
@@ -55,9 +60,11 @@ function parseToml(src) {
   return out;
 }
 
-// catalog ids, to verify maps_to
+// catalog ids, to verify maps_to; plus a module id -> real product name map so each cog can carry
+// the real sensor name as its headline (modules are preferred over chips as the primary sensor).
 const cat = JSON.parse(readFileSync(catPath, "utf8"));
 const catIds = new Set([...(cat.modules || []), ...(cat.chips || []), ...(cat.projects || [])].map((r) => r.id));
+const moduleName = new Map((cat.modules || []).map((r) => [r.id, r.name || r.id]));
 
 const cogs = [];
 const dirs = readdirSync(cogsDir).filter((d) => {
@@ -76,6 +83,10 @@ for (const d of dirs) {
     return ok;
   });
   const storeId = toml["config.base_store_id"] && toml["config.base_store_id"].default;
+  // Primary sensor: the first verified mapped part that is a catalog module (module > chip). Its
+  // real product name becomes the cog's headline everywhere. Sensorless cogs get null/null.
+  const sensor_id = maps_to.find((pid) => moduleName.has(pid)) || null;
+  const sensor_name = sensor_id ? moduleName.get(sensor_id) : null;
   cogs.push({
     id,
     name: cog.name || id,
@@ -87,6 +98,8 @@ for (const d of dirs) {
     bind_port: toml.api && typeof toml.api.bind_port === "number" ? toml.api.bind_port : null,
     binary: cog.binary || "",
     maps_to,
+    sensor_id,
+    sensor_name,
   });
 }
 

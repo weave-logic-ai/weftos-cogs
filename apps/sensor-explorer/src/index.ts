@@ -160,7 +160,7 @@ app.get("/api/cogs", async (c) => {
     return c.json({ count: cogs.length, cogs });
   }
   const { results } = await c.env.DB.prepare(
-    "SELECT id,name,category,version,description,store_id,hardware,bind_port,maps_to,hash FROM cogs ORDER BY name"
+    "SELECT id,name,category,version,description,store_id,hardware,bind_port,maps_to,sensor_id,sensor_name,hash FROM cogs ORDER BY sensor_name IS NULL, sensor_name, name"
   ).all();
   const cogs = (results as any[]).map(cogRow);
   return c.json({ count: cogs.length, cogs });
@@ -378,6 +378,8 @@ h1{margin:0;font-size:var(--fs-2xl);font-weight:700;letter-spacing:-.015em}
 .phead{display:flex;align-items:center;gap:8px;margin:4px 0 8px}
 #pbody h2{margin:2px 0 4px;font-size:var(--fs-xl);font-weight:700;line-height:1.2}
 .pid{font-size:var(--fs-xs);color:var(--grey);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.cogsub{margin:0 0 10px;font-size:var(--fs-sm);color:var(--grey);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.cogslug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--grey);background:var(--chip-bg);padding:2px 7px;border-radius:var(--r-pill)}
 .role{color:var(--grey);margin:0 0 10px;font-size:var(--fs-sm)}
 .psum{font-size:var(--fs-base);color:var(--ink);margin:6px 0 10px;line-height:1.5}
 .note{background:var(--noteb);border-left:3px solid var(--accent);padding:9px 12px;border-radius:0 6px 6px 0;margin:8px 0;font-size:var(--fs-sm);color:var(--ink)}
@@ -675,14 +677,20 @@ function selectPoolCat(k){POOL.cat=(POOL.cat===k?null:k);poolSearch();closeDrawe
 
 /* ---- cogs mode ---- */
 function cogMapsTo(c){return (c.maps_to||c.rec&&c.rec.maps_to)||[];}
+/* Headline = the real product name of the sensor the cog reads; fall back to the cog's own
+   function name only for sensorless cogs (bridge/catalog/ota). */
+function cogHead(c){return c.sensor_name||c.name||c.id;}
 function cogCardHTML(c){
   var maps=cogMapsTo(c);
+  var head=cogHead(c);
+  var role=c.sensor_name?(c.name||''):'';            // the cog's function, shown as a subtitle
   var sub=(c.category||'')+(c.version?' \\u00b7 v'+c.version:'');
-  return '<article class=card role=button tabindex=0 data-cog="'+esc(c.id)+'" aria-label="'+esc(c.name||c.id)+', cog">'
+  return '<article class=card role=button tabindex=0 data-cog="'+esc(c.id)+'" aria-label="'+esc(head)+', cog">'
     +'<div class=cardhead><span class="badge b-cog">cog</span>'+(sub?'<span class=vend>'+esc(sub)+'</span>':'')+'</div>'
-    +'<h3>'+esc(c.name||c.id)+'</h3>'
+    +'<h3>'+esc(head)+'</h3>'
+    +'<p class=cogsub>'+(role?esc(role)+' ':'')+'<code class=cogslug>'+esc(c.id)+'</code></p>'
     +(c.description?'<p class=sum>'+esc(trim(c.description,160))+'</p>':'')
-    +'<div class=cardfoot>'+(maps.length?'<span class=maps>works with '+nfmt(maps.length)+' part'+(maps.length===1?'':'s')+'</span>':'<span class=promote>no part yet</span>')+'</div></article>';
+    +'<div class=cardfoot>'+(c.sensor_name?'<span class=maps>Reads '+esc(c.sensor_name)+'</span>':(maps.length?'<span class=maps>works with '+nfmt(maps.length)+' part'+(maps.length===1?'':'s')+'</span>':'<span class=promote>no part yet</span>'))+'</div></article>';
 }
 function ensureCogs(cb){
   if(COGS.loaded){cb&&cb();return;}
@@ -762,14 +770,17 @@ function openCogDetail(id){
   if(!c){fetch('/api/cogs/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(d){if(d&&!d.error){COGS.byId=COGS.byId||{};COGS.byId[id]=d;openCogDetail(id);}});openPanel();document.getElementById('pbody').innerHTML='<p class=loading>Loading\\u2026</p>';return;}
   openPanel();
   var maps=cogMapsTo(c);
+  var head=cogHead(c);
   var h='<div class=phead><span class="badge b-cog">cog</span><span class=vend>'+esc((c.category||'')+(c.version?' \\u00b7 v'+c.version:''))+'</span></div>';
-  h+='<h2 id=ptitle>'+esc(c.name||c.id)+'</h2>';
+  h+='<h2 id=ptitle>'+esc(head)+'</h2>';
+  if(c.sensor_name)h+='<p class=role>'+esc(c.name||'')+'</p>';
   h+='<p class=pid>'+esc(c.id)+'</p>';
   if(c.description)h+='<p class=psum>'+esc(c.description)+'</p>';
   var spec={};if(c.bind_port)spec['API port']=c.bind_port;if(c.store_id)spec['Base store id']=c.store_id;if(c.hardware_requirement&&c.hardware_requirement.length)spec['Hardware']=c.hardware_requirement.join(', ');if(c.binary)spec['Binary']=c.binary;
   h+=specTable(spec);
+  if(c.sensor_id)h+='<div class=xref><b>Reads</b><div class=xlinks><a class=xlink href="/part/'+encodeURIComponent(c.sensor_id)+'">'+esc(c.sensor_name)+' \\u2197</a></div></div>';
   if(maps.length)h+=xref('Works with these parts',maps,nameOf);
-  else h+='<div class=phint>No catalog part maps to this cog yet.</div>';
+  else if(!c.sensor_id)h+='<div class=phint>No catalog part maps to this cog yet.</div>';
   h+='<div class=note>Install on a Seed over MCP: <code>cog install '+esc(c.id)+'</code></div>';
   document.getElementById('pbody').innerHTML=h;document.getElementById('pbody').scrollTop=0;document.getElementById('pclose').focus();
 }
@@ -978,9 +989,12 @@ function cogTab(cogs: any[]): string {
       '<button class=btn id=createcog>Create a cog for this part</button><p class=msg id=cogmsg></p></div>';
   }
   return cogs.map((c) => {
+    const head = c.sensor_name || c.name || c.id;
     let h = '<div class=cogcard>';
     h += '<div class=phead><span class="badge b-cog">cog</span><span class=vend>' + esc(c.category || "") + (c.version ? ' · v' + esc(c.version) : '') + '</span></div>';
-    h += '<h2>' + esc(c.name || c.id) + '</h2><p class=pid>' + esc(c.id) + '</p>';
+    h += '<h2>' + esc(head) + '</h2>';
+    if (c.sensor_name) h += '<p class=role>' + esc(c.name || "") + '</p>';
+    h += '<p class=pid>' + esc(c.id) + '</p>';
     if (c.description) h += '<p class=psum>' + esc(c.description) + '</p>';
     const spec: any = {};
     if (c.bind_port) spec["API port"] = c.bind_port;
@@ -988,6 +1002,7 @@ function cogTab(cogs: any[]): string {
     if (Array.isArray(c.hardware_requirement) && c.hardware_requirement.length) spec["Hardware"] = c.hardware_requirement.join(", ");
     if (c.binary) spec["Binary"] = c.binary;
     h += specTableSrv(spec);
+    if (c.sensor_id) h += '<div class=cogreads><b>Reads</b> <a href="/part/' + encodeURIComponent(c.sensor_id) + '">' + esc(c.sensor_name) + '</a></div>';
     h += '<div class=note>Install on a Seed over MCP: <code>cog install ' + esc(c.id) + '</code> (cog-dev / seed-mcp). The cog then serves its API on port ' + esc(c.bind_port || "?") + '.</div>';
     h += '</div>';
     return h;
@@ -1038,6 +1053,7 @@ a{color:var(--wl-ink);text-decoration:none}a:hover{text-decoration:underline}
 .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:var(--r-pill);color:#fff}
 .b-module{background:var(--wl)}.b-chip{background:var(--accent)}.b-project{background:var(--green)}.b-cog{background:var(--pool)}.b-fw{background:#c0527a}
 .vend{color:var(--grey);font-size:12px;margin-left:auto}
+.cogreads{margin:12px 0;font-size:13px}.cogreads b{color:var(--grey);text-transform:uppercase;font-size:11px;letter-spacing:.04em;margin-right:6px}.cogreads a{color:var(--wl-ink);font-weight:600}
 h1{margin:4px 0 2px;font-size:24px;font-weight:700;line-height:1.2}
 h2{margin:2px 0 4px;font-size:18px}
 .pid{font-size:12px;color:var(--grey);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin:0 0 2px}

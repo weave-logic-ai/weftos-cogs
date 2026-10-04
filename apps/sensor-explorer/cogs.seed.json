@@ -7,7 +7,7 @@
       "id": "bridge",
       "name": "Sensor Bridge",
       "category": "network",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "description": "Receives sensor readings from external WeftOS nodes (a Pi 5, an Orange Pi) and writes them into the Seed store, so remote sensing joins the Seed's memory. Readings come from weft-bridge-send; each source gets its own store id. COG-007.",
       "store_id": "30",
       "hardware_requirement": [
@@ -16,12 +16,14 @@
       ],
       "bind_port": 8048,
       "binary": "cog-bridge-arm",
-      "maps_to": []
+      "maps_to": [],
+      "sensor_id": null,
+      "sensor_name": null
     },
     {
       "id": "catalog",
       "name": "Hardware Catalog",
-      "category": "app",
+      "category": "developer",
       "version": "0.1.0",
       "description": "Serves the WeftOS hardware-catalog browse page (Projects -> Modules -> Chips) and the catalog JSON over HTTP, so the appliance offers the catalog on the mesh. Embeds a snapshot of catalog.json and a self-contained viewer; no sensor, no store writes.",
       "store_id": null,
@@ -30,12 +32,14 @@
       ],
       "bind_port": 8060,
       "binary": "cog-catalog-arm",
-      "maps_to": []
+      "maps_to": [],
+      "sensor_id": null,
+      "sensor_name": null
     },
     {
       "id": "hlk-as201",
       "name": "Attitude / IMU (HLK-AS201)",
-      "category": "motion",
+      "category": "presence",
       "version": "0.1.0",
       "description": "Hi-Link HLK-AS201 9/10-axis attitude sensor (3-axis accel + 3-axis gyro + 3-axis magnetometer + barometer; 32-bit DSP) read over a 3.3 V TTL UART at 115200 8N1. Reports orientation (roll/pitch/yaw), acceleration (g), angular rate (deg/s), magnetic field (uT), quaternion, temperature, pressure and height. Protocol CONFIRMED against the Hi-Link AS201 datasheet V1.1 (2025-08-01): FA FB.len.cmd.data.SUM.FC FD framing, cmd 0x00 report with a 42-byte ten-axis payload. The X/Y/Z silkscreen identifies this as an IMU, not a radar.",
       "store_id": null,
@@ -48,12 +52,53 @@
       "maps_to": [
         "hlk-as201-module",
         "as201-imu"
-      ]
+      ],
+      "sensor_id": "hlk-as201-module",
+      "sensor_name": "Hi-Link HLK-AS201 attitude sensor"
+    },
+    {
+      "id": "ld2450-radar",
+      "name": "LD2450 Tracking Radar",
+      "category": "presence",
+      "version": "0.1.0",
+      "description": "Reads an HLK-LD2450 24 GHz multi-target tracking radar over a 3.3 V UART (256000 8N1) and reports, per window, the up-to-three targets of the radar's latest frame: x/y in metres in the radar's own frame (not room coordinates), speed in m/s and the distance-gate size, plus the valid-target count, frame rate and parse-error counts. Positions only: no identity, no pose, no bounding box. A missing or silent radar yields null values, never a fabricated reading.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": 8052,
+      "binary": "cog-ld2450-radar-arm",
+      "maps_to": [
+        "hlk-ld2450"
+      ],
+      "sensor_id": "hlk-ld2450",
+      "sensor_name": "HLK-LD2450 (24 GHz position tracking radar)"
+    },
+    {
+      "id": "ld6002-radar",
+      "name": "LD6002 Radar",
+      "category": "health",
+      "version": "0.2.0",
+      "description": "Reads an HLK-LD6002 60 GHz radar over USB-serial UART and reports, per window, the radar's own heart-rate, breathing-rate, distance, target-count and presence-flag outputs, the target positions it streams (x/y metres in the radar's own frame, not room coordinates), plus frame and checksum counts. Values the radar did not report in the window are null. The vitals are the module's on-chip estimates, not medical measurements; no pose, no bounding box.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": null,
+      "binary": "cog-ld6002-radar-arm",
+      "maps_to": [
+        "hlk-ld6002",
+        "hlk-ld6002b"
+      ],
+      "sensor_id": "hlk-ld6002",
+      "sensor_name": "Hi-Link HLK-LD6002 60 GHz FMCW vitals radar module"
     },
     {
       "id": "mentra-live",
       "name": "Mentra Live Glasses (companion bridge)",
-      "category": "bridge",
+      "category": "wearable",
       "version": "0.1.0",
       "description": "Companion-side bridge that lets a pair of Mentra Live smart glasses join the mesh as a node. The glasses run Android (the MentraOS ASG client) and cannot run a cog themselves, so this cog runs on a companion that can reach them over ADB (USB, or ADB-over-TCP/Wi-Fi) and reports their liveness. Each interval it reads presence (device reachable), battery (level, charging state, plug type, pack temperature and voltage) and link health (ADB round-trip time), emits them as a store vector, and posts a fleet heartbeat so the glasses show up as an online node. Telemetry-first by design; HUD rendering, sensors and audio are built on top of this node once it is joined. Fail-honest: with no ADB or no device it reports no_source and keeps the node offline rather than faking liveness.",
       "store_id": null,
@@ -66,7 +111,9 @@
         "mentra-live-glasses",
         "mentra-live-display",
         "mentra-live-microphone"
-      ]
+      ],
+      "sensor_id": "mentra-live-glasses",
+      "sensor_name": "Mentra Live AR Glasses"
     },
     {
       "id": "rd-03e",
@@ -83,7 +130,9 @@
       "binary": "cog-rd-03e-arm",
       "maps_to": [
         "rd-03e-module"
-      ]
+      ],
+      "sensor_id": "rd-03e-module",
+      "sensor_name": "Ai-Thinker RD-03E radar"
     },
     {
       "id": "sen0213-ecg",
@@ -102,7 +151,9 @@
         "sen0213-ecg",
         "ad8232-board",
         "ad8232"
-      ]
+      ],
+      "sensor_id": "sen0213-ecg",
+      "sensor_name": "DFRobot SEN0213 Heart-Rate / ECG module (AD8232)"
     },
     {
       "id": "sen0628-tof",
@@ -121,7 +172,26 @@
         "sen0628-tof",
         "dfrobot-sen0628-vl53l7cx",
         "vl53l7cx"
-      ]
+      ],
+      "sensor_id": "sen0628-tof",
+      "sensor_name": "DFRobot SEN0628 8x8 matrix ToF 3D distance sensor"
+    },
+    {
+      "id": "sensor-ota-push",
+      "name": "Sensor OTA Push",
+      "category": "swarm",
+      "version": "0.1.0",
+      "description": "Pushes an ESP-IDF app image to RuView ESP32 sensor nodes through their authenticated OTA HTTP endpoint (port 8032). Dry run by default: checks the image SHA-256, chip id and app version, reads each node's /ota/status, and prints the upload plan without sending any POST. --apply uploads one node at a time and waits for the node to reboot into the new build. Reaches the ota_0/ota_1 app slots only, never the bootloader, partition table or NVS.",
+      "store_id": null,
+      "hardware_requirement": [
+        "pi-zero-2w",
+        "v0-appliance"
+      ],
+      "bind_port": null,
+      "binary": "cog-sensor-ota-push-arm",
+      "maps_to": [],
+      "sensor_id": null,
+      "sensor_name": null
     },
     {
       "id": "sound-detect",
@@ -139,7 +209,9 @@
       "maps_to": [
         "ky-038",
         "inmp441-mic"
-      ]
+      ],
+      "sensor_id": "ky-038",
+      "sensor_name": "KY-038 / LM393 sound module"
     }
   ]
 }

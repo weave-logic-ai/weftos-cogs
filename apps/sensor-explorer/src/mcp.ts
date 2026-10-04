@@ -54,12 +54,12 @@ const TOOLS = [
   },
   {
     name: "list_cogs",
-    description: "List the cog registry — the installable WeftOS/Cognitum cogs (sensor readers, bridges, apps) and the catalog part ids each works with (maps_to). Use to discover whether a sensor already has a cog.",
+    description: "List the cog registry — the installable WeftOS/Cognitum cogs (sensor readers, bridges, apps). Each cog leads with `sensor_name`/`sensor_id`: the REAL product name of the catalog sensor it reads (e.g. 'HLK-LD2450 (24 GHz position tracking radar)'), with `name` being the cog's function (e.g. 'LD2450 Tracking Radar') and `id` the internal slug. `maps_to` lists every catalog part id the cog works with. Use to discover whether a sensor already has a cog.",
     inputSchema: { type: "object", properties: {} },
   },
   {
     name: "find_cog",
-    description: "Find cogs by keyword (cog name, sensor, category). E.g. 'radar', 'ecg', 'ld2450'. Returns the matching cogs and the catalog parts they map to.",
+    description: "Find cogs by keyword — real sensor/product name, cog function, category, or slug. E.g. 'LD2450', 'RD-03E radar', 'ecg', 'ld2450-radar'. Results lead with `sensor_name`/`sensor_id` (the real sensor the cog reads) and also carry the cog function `name`, the slug `id`, and the catalog parts it maps to.",
     inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
   },
   {
@@ -127,7 +127,7 @@ async function callTool(name: string, args: any, env: Env, scope: Scope) {
     return text({ count: results.length, results });
   }
   if (name === "list_cogs") {
-    const { results } = await DB.prepare("SELECT id,name,category,version,description,store_id,hardware,bind_port,maps_to,hash FROM cogs ORDER BY name").all();
+    const { results } = await DB.prepare("SELECT sensor_name,sensor_id,id,name,category,version,description,store_id,hardware,bind_port,maps_to,hash FROM cogs ORDER BY sensor_name IS NULL, sensor_name, name").all();
     const cogs = (results as any[]).map((r) => ({ ...r, hardware: safeJson(r.hardware), maps_to: safeJson(r.maps_to) }));
     return text({ count: cogs.length, cogs });
   }
