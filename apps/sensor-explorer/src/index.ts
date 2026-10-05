@@ -312,6 +312,45 @@ app.get("/registry.json", async (c) => {
   return c.json({ schema: 1, repo: "weavelogic", updated: today, cogs });
 });
 
+// COG-008 repo layout: serve each signed binary at its registry `path` (== the R2 key), so a
+// generic client (weft-cog-repo, the on-device cogrepo cog) can fetch `<base>/<path>` as the
+// signed-install contract requires — not only via /api/cogs/:id/download. The key is looked up in
+// cog_artifacts, so ONLY a registered, signed artifact is served; the sha256 / Ed25519 sig /
+// signer pubkey ride in headers for verify-before-trust. Streams from R2, falls back to D1 bytes.
+app.get("/cogs/:arch/:file", async (c) => {
+  const key = `cogs/${c.req.param("arch")}/${c.req.param("file")}`;
+  const row = await c.env.DB.prepare(
+    "SELECT cog_id,target,version,size,sha256,sig,signer_pubkey FROM cog_artifacts WHERE r2_key=? LIMIT 1"
+  ).bind(key).first<any>();
+  if (!row) return c.json({ error: "no such artifact" }, 404);
+  const headers: Record<string, string> = {
+    "content-type": "application/octet-stream",
+    "content-disposition": `attachment; filename="${c.req.param("file")}"`,
+    "x-cog-id": row.cog_id,
+    "x-cog-target": row.target,
+    "x-cog-version": row.version,
+    "x-cog-size": String(row.size),
+    "x-cog-sha256": row.sha256,
+    "x-cog-sig": row.sig,
+    "x-cog-signer": row.signer_pubkey,
+    "cache-control": "public, max-age=3600",
+  };
+  if (c.env.ASSETS) {
+    const obj = await c.env.ASSETS.get(key);
+    if (obj) {
+      headers["etag"] = obj.httpEtag;
+      return new Response(obj.body, { headers });
+    }
+  }
+  const blob = await c.env.DB.prepare(
+    "SELECT bytes FROM cog_artifacts WHERE r2_key=?"
+  ).bind(key).first<{ bytes: ArrayBuffer | Uint8Array | number[] | null }>();
+  if (!blob || !blob.bytes) return c.json({ error: "artifact bytes not uploaded yet" }, 404);
+  const b: any = blob.bytes;
+  const body: BodyInit = b instanceof ArrayBuffer || ArrayBuffer.isView(b) ? b : new Uint8Array(b);
+  return new Response(body, { headers });
+});
+
 // The cog (if any) and firmware (if any) that map to a given part id.
 async function cogsForPart(env: Env, partId: string) {
   const { results } = await env.DB.prepare("SELECT data FROM cogs WHERE maps_to LIKE ?").bind(`%"${partId}"%`).all();
