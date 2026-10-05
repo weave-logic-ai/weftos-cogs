@@ -1,0 +1,29 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cross-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cross-build all cogs (armv7 + aarch64)
+        run: scripts/cross-build.sh
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find .cargo-target/dist -type f -name 'cog-*-arm*' -exec cp {} dist/ \;
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cog-binaries
+          path: dist/
+          if-no-files-found: error
+
+  # Signing + publish is a SEPARATE controlled step (COG-012 Q1): the private
+  # WEAVELOGIC_RELEASE_KEY is NOT placed on this public repo. Release binaries are
+  # signed with `weft-cog-repo sign` from a controlled host and published to the
+  # Sensor Explorer (R2 + registry.json). This workflow only proves the build.
