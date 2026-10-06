@@ -1,0 +1,38 @@
+{
+  // WeftOS Sensor Explorer — Cloudflare Worker + D1 (+ R2 for datasheets/photos later).
+  // Deploy: wrangler d1 create sensor-explorer  ->  put the database_id below  ->
+  //         npm run db:migrate && npm run seed:gen && npm run db:seed && npm run deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sensor-explorer",
+  "main": "src/index.ts",
+  "workers_dev": true,
+  "routes": [{ "pattern": "cogs.weavelogic.ai", "custom_domain": true }],
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sensor-explorer",
+      "database_id": "95c468f6-452f-4e6c-bf5c-56da7537a1b9"
+    }
+  ],
+  // R2 for signed cog binaries + manifests (COG-008) and, later, datasheet PDFs/photos.
+  // Account-level R2 is OFF today (wrangler r2 ... → error 10042 "enable R2 in the Dashboard").
+  // To turn it on: (1) enable R2 once in the Cloudflare dashboard, (2) `wrangler r2 bucket
+  // create sensor-explorer-assets`, (3) uncomment the binding below, (4) `npm run deploy`,
+  // (5) upload the binaries to keys matching cog_artifacts.r2_key. The download endpoint streams
+  // from R2 the moment ASSETS is bound; until then it serves the inline cog_artifacts.bytes.
+  "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "sensor-explorer-assets" }],
+  "vars": {
+    "EXPLORER_NAME": "WeftOS Sensor Explorer"
+  },
+  // The guide popup's wasm + JS glue. Unmatched paths still run this worker.
+  "assets": {
+    "directory": "./public",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  }
+  // Secrets (set with `wrangler secret put`):
+  //   BOOTSTRAP_API_KEY  — a bearer key that always works (read+contribute) for first use.
+}

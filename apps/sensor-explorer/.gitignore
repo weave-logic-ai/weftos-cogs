@@ -1,0 +1,16 @@
+node_modules/
+.wrangler/
+dist/
+seed.sql
+.dev.vars
+*.log
+pool-seed.sql
+pool.seed.json
+cogs-seed.sql
+cog-artifacts.sql
+registry.json
+wl-repo/
+
+# Generated guide-view bundle (wasm-bindgen). Rebuild locally; do not commit.
+public/guide-view/*.js
+public/guide-view/*.wasm

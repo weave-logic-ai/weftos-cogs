@@ -1,0 +1,46 @@
+{
+  "name": "sensor-explorer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WeftOS Sensor Explorer \u2014 browsable, contributable hardware catalog with an MCP agent surface, on Cloudflare Workers + D1.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create sensor-explorer",
+    "db:migrate": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0001_init.sql",
+    "db:migrate:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0001_init.sql",
+    "seed:gen": "node scripts/gen-seed.mjs catalog.seed.json seed.sql",
+    "db:seed": "wrangler d1 execute sensor-explorer --remote --file=./seed.sql",
+    "db:seed:local": "wrangler d1 execute sensor-explorer --local --file=./seed.sql",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:pool": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0002_pool.sql",
+    "pool:seed:gen": "node scripts/gen-pool-seed.mjs pool.seed.json pool-seed.sql",
+    "db:pool": "wrangler d1 execute sensor-explorer --remote --file=./pool-seed.sql",
+    "db:pool:local": "wrangler d1 execute sensor-explorer --local --file=./pool-seed.sql",
+    "db:migrate:cogs": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0003_cogs_fw_research.sql",
+    "db:migrate:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0003_cogs_fw_research.sql",
+    "db:migrate:cogsensor": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0004_cog_sensor_name.sql",
+    "db:migrate:cogsensor:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0004_cog_sensor_name.sql",
+    "cogs:scan": "node scripts/scan-cogs.mjs",
+    "cogs:seed:gen": "node scripts/gen-cogs-seed.mjs cogs.seed.json firmware.seed.json cogs-seed.sql",
+    "db:cogs": "wrangler d1 execute sensor-explorer --remote --file=./cogs-seed.sql",
+    "db:cogs:local": "wrangler d1 execute sensor-explorer --local --file=./cogs-seed.sql",
+    "db:migrate:artifacts": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0005_cog_artifacts.sql",
+    "db:migrate:activity": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0006_activity.sql",
+    "db:migrate:activity:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0006_activity.sql",
+    "db:migrate:artifacts:local": "wrangler d1 execute sensor-explorer --local --file=./migrations/0005_cog_artifacts.sql",
+    "cogs:artifacts:gen": "node scripts/gen-cog-artifacts.mjs registry.json cog-artifacts.sql",
+    "db:artifacts": "wrangler d1 execute sensor-explorer --remote --file=./cog-artifacts.sql",
+    "db:artifacts:local": "wrangler d1 execute sensor-explorer --local --file=./cog-artifacts.sql",
+    "cogs:artifacts:push": "node scripts/push-cog-bytes.mjs wl-repo"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^3.90.0"
+  }
+}
