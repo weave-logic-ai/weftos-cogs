@@ -9,7 +9,7 @@ const PINNED_PUBKEY = "6aae63e067488f1e5414ad4a6b9536bef0407db210fb33a3b378e8d6d
 const [, , regPath = "registry.json", outPath = "cog-artifacts.sql", signer = PINNED_PUBKEY] = process.argv;
 
 // COG-008 registry artifact keys → canonical cog targets.
-const TARGET = { arm: "armv7", arm64: "aarch64" };
+const TARGET = { arm: "armv7", arm64: "aarch64", x86_64: "x86_64", amd64: "x86_64" };
 
 const reg = JSON.parse(readFileSync(regPath, "utf8"));
 const q = (s) => "'" + String(s ?? "").replaceAll("'", "''") + "'";

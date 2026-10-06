@@ -5,6 +5,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sensor-explorer",
   "main": "src/index.ts",
+  "workers_dev": true,
+  "routes": [{ "pattern": "cogs.weavelogic.ai", "custom_domain": true }],
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
@@ -24,6 +26,12 @@
   "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "sensor-explorer-assets" }],
   "vars": {
     "EXPLORER_NAME": "WeftOS Sensor Explorer"
+  },
+  // The guide popup's wasm + JS glue. Unmatched paths still run this worker.
+  "assets": {
+    "directory": "./public",
+    "html_handling": "none",
+    "not_found_handling": "none"
   }
   // Secrets (set with `wrangler secret put`):
   //   BOOTSTRAP_API_KEY  — a bearer key that always works (read+contribute) for first use.

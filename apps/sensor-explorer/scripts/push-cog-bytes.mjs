@@ -10,7 +10,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
-const TARGET = { arm: "armv7", arm64: "aarch64" };
+const TARGET = { arm: "armv7", arm64: "aarch64", x86_64: "x86_64", amd64: "x86_64" };
 const [, , dir, base = "https://sensor-explorer.wfscifi.workers.dev"] = process.argv;
 if (!dir) { console.error("usage: node scripts/push-cog-bytes.mjs <registry-dir> [base-url]"); process.exit(1); }
 

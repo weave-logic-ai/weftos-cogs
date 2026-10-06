@@ -66,7 +66,7 @@ export async function searchPool(DB: D1Database, q: string, category?: string, l
   const lim = clampLimit(limit, 20, 200);
   const tokens = tokenize(q);
   const run = async (where: string, whereBinds: any[]): Promise<any[]> => {
-    let sql = `SELECT mpn,manufacturer,name,category,price,datasheet,hash FROM pool WHERE (${where})`;
+    let sql = `SELECT mpn,manufacturer,name,category,price,datasheet,hash, json_extract(data,'$.image') AS image, json_extract(data,'$.summary') AS summary FROM pool WHERE (${where})`;
     const binds = [...whereBinds];
     if (category) { sql += " AND category=?"; binds.push(category); }
     sql += " ORDER BY manufacturer,mpn LIMIT ?"; binds.push(lim);

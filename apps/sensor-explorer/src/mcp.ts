@@ -3,6 +3,7 @@
 // the tree, get a suggestion for a task, and (with contribute scope) propose a new part.
 
 import { type Env, expandedSearch, searchPool, searchCogs } from "./search";
+import { recordEvent, recordLook } from "./activity";
 export type { Env };
 
 const VERSION = "0.2.0";
@@ -176,7 +177,13 @@ export async function handleRpc(msg: any, env: Env, scope: Scope): Promise<any |
       case "tools/list":
         return ok({ tools: TOOLS });
       case "tools/call": {
-        const res = await callTool(params?.name, params?.arguments || {}, env, scope);
+        const tool = String(params?.name || "");
+        const args = params?.arguments || {};
+        const res = await callTool(tool, args, env, scope);
+        const ref = String(args.id || args.mpn || args.query || args.need || "").slice(0, 180);
+        const failed = "isError" in res && res.isError;
+        if (tool === "get_part" && ref && !failed) await recordLook(env.DB, ref, "mcp");
+        else if (tool) await recordEvent(env.DB, tool === "add_part" || tool === "promote_from_pool" ? "contribution" : "mcp", ref, tool);
         return ok(res);
       }
       default:
