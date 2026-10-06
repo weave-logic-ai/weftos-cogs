@@ -11,8 +11,9 @@ described in [conformance-harness.md](conformance-harness.md).
 export WEFTOS_PI_HOST=pi5                              # [user@]host or ~/.ssh/config alias
 export WEFTOS_PI_COG_MANIFEST=/path/to/cog-hashes.json # verified cog sha256s (see below)
 scripts/build.sh test-pi                               # full lane (see below)
-scripts/build.sh test-pi clawft-kernel                 # one crate's tests on the Pi
-scripts/build.sh test-pi clawft-kernel --filter chain  # libtest name filter
+scripts/build.sh test-pi <crate>                       # one crate's tests on the Pi
+scripts/build.sh test-pi <crate> --filter <name>       # libtest name filter
+# <crate> is a crate in the tree you run the lane from. The kernel crate previously named here is not in this repository.
 scripts/build.sh test-pi --live-native                 # native adapter live test only
 scripts/build.sh test-pi --cogs                        # cog conformance (ssh mode) only
 scripts/build.sh test-pi --placement                   # two-node placement, Mac -> Pi (card 12)
@@ -32,7 +33,7 @@ OrbStack Debian trixie arm64 VM works for the same tests:
 orb create -a arm64 debian:trixie weftos-arm64
 ssh weftos-arm64@orb 'sudo apt-get install -y python3 rsync'
 export WEFTOS_PI_HOST=weftos-arm64@orb
-scripts/build.sh test-pi clawft-kernel
+scripts/build.sh test-pi <crate>
 ```
 
 The preflight stops with a clear message if `rsync` or `python3` is missing.
@@ -97,8 +98,8 @@ them with `python3 -m unittest discover -s scripts/pi`.
    also fails if the filter selected zero tests (passed, failed or ignored)
    across all binaries, so a typo cannot report green. Each binary runs under the Pi's `timeout -k 10 <--timeout>`, so
    a hung test is killed on the Pi, not only the local ssh client.
-5. **Native adapter live test.** The clawft-kernel lib test binary runs
-   `workload_runtime::tests_live::live_native_anomaly_detect` with
+5. **Native adapter live test.** The WeftOS kernel lib test binary (not in this
+   repository) runs `live_native_anomaly_detect` with
    `WEFTOS_NATIVE_LIVE=1`, using the released `cog-anomaly-detect-aarch64` (fetched
    and ELF-checked through the `scripts/cogs` cache). This stage passes only if
    the test actually ran (1 passed, not an early return) and printed its

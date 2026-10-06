@@ -329,7 +329,7 @@ scripts/build.sh licence-uid-check          # Linux: another user cannot read th
 ```
 
 `licence-cross` uses the cogs cross image `weavelogic-cogs-cross:1.97.1` (built by
-`scripts/cross-build.sh` in the private cogs repo), builds offline from the host
+this repository's `scripts/cross-build.sh`), builds offline from the host
 cargo cache (mounted read-only after an offline `cargo fetch` check), and writes `target/licence-cross/<triple>/release/weft-licence`.
 It skips with a message when docker or the image is missing. The build enables
 `--features net`, which adds the https registry reader (rustls).

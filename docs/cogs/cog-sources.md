@@ -1,6 +1,6 @@
 # How a project gets cogs: sources, licences and private repos
 
-Design record: [ADR-105](../adr/adr-105-cog-sources.md). Commands: the `weaver cog` group, `weaver workload catalog --kind cog`, and `weft-cog-repo` for authoring. This page is the how-to. What is built and what is only designed is listed at the end.
+Design record: [COG-105](../decisions/COG-105-cog-sources.md). The OS and runtime portions remain WeftOS ADR-105 (they are not in this repository). Commands: the `weaver cog` group, `weaver workload catalog --kind cog`, and `weft-cog-repo` for authoring. This page is the how-to. What is built and what is only designed is listed at the end.
 
 A WeftOS project gets cogs from a **list of sources**. Three kinds exist:
 
@@ -182,7 +182,7 @@ There are four different keys. Do not mix them up.
 
 ### Provisioning the WeftOS package signer (`WEFTOS_PINNED_SIGNERS`)
 
-The set in `crates/clawft-kernel/src/workload_pkg/trust.rs` is empty until this is done, so today every accepted package signature is operator-pinned. To provision it (an owner action, one time):
+The compiled-in WeftOS package-signer set is empty until this is done, so today every accepted package signature is operator-pinned. That set lives in the WeftOS tree, not in this repository. To provision it (an owner action, one time):
 
 1. Generate the key on a trusted machine: `weaver workload keygen --out weftos-package-signer.seed --key-id weftos-release-1`. It writes the 32-byte seed as 64 hex chars with mode 0600 (never overwriting) and prints the key id, the public key and a trust-file entry.
 2. Put the **seed** in your secret store (the CI secret manager) under a name such as `WEFTOS_PACKAGE_SIGNING_KEY`, and delete the local file. The seed is never committed, never in a chain event and never in a log. Back it up separately from the CI secret.

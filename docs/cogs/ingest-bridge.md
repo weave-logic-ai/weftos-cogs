@@ -1,6 +1,6 @@
 # Cog ingest bridge
 
-Code: `crates/clawft-kernel/src/cog_ingest/`. Card: mesh-placement-10.
+The ingest bridge is WeftOS code. It is not in this repository. Card: mesh-placement-10.
 Decision: ADR-100, "Decision 5 resolved (2026-10-02)".
 
 A placed cog posts feature vectors to `POST /api/v1/store/ingest` with its
@@ -94,8 +94,8 @@ cog's token is unknown and its posts are refused.
 
 ## Daemon configuration
 
-The daemon (`crates/clawft-weave/src/cog_ingest_serve.rs`) starts the bridge
-when it builds its placement host, and the `cog-store` service when asked.
+The WeftOS daemon starts the bridge when it builds its placement host, and the
+`cog-store` service when asked. That daemon source is not in this repository.
 Everything is optional; `<runtime>/cog-ingest.json` overrides the defaults:
 
 ```json
@@ -286,8 +286,8 @@ made.
 
 ## Tests
 
-`cargo test -p clawft-kernel --lib cog_ingest workload_ctl::tests_ingest`
-and `cargo test -p clawft-weave --lib cog_ingest_serve`:
+The bridge tests (`cog_ingest`, `workload_ctl::tests_ingest`, and the daemon's
+`cog_ingest_serve` tests) run in the WeftOS tree. They are not in this repository:
 
 - a stub cog placed through the real placement path (controller, signed
   `workload.ctl`, fetch-before-load, native adapter) posts with its injected
