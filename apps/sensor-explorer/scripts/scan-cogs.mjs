@@ -3,14 +3,16 @@
 // facts {id,name,category,version,description,store_id,hardware_requirement,bind_port} plus
 // `maps_to`: the catalog part ids the cog works with (verified against catalog.seed.json).
 //
-// Usage: node scripts/scan-cogs.mjs [cogsDir] [catalog.seed.json] [cogs.seed.json]
-//   cogsDir defaults to a local cog directory
+// Usage: node scripts/scan-cogs.mjs <cogsDir> [catalog.seed.json] [cogs.seed.json]
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
+import { basename, join } from "node:path";
 
 const [, , cogsDirArg, catPath = "catalog.seed.json", outPath = "cogs.seed.json"] = process.argv;
-const cogsDir = cogsDirArg || join(homedir(), "local-cogs");
+if (!cogsDirArg) {
+  console.error("usage: node scripts/scan-cogs.mjs <cogsDir> [catalog.seed.json] [cogs.seed.json]");
+  process.exit(1);
+}
+const cogsDir = cogsDirArg;
 
 // Which catalog part(s) each cog works with. Verified against the catalog below; a cog may map to
 // nothing (network/app cogs) and still appear in the registry. The FIRST mapped entry that is a
@@ -104,5 +106,5 @@ for (const d of dirs) {
   });
 }
 
-writeFileSync(outPath, JSON.stringify({ schema: 1, source: cogsDir, generated: new Date().toISOString().slice(0, 10), cogs }, null, 2) + "\n");
+writeFileSync(outPath, JSON.stringify({ schema: 1, source: basename(cogsDir), generated: new Date().toISOString().slice(0, 10), cogs }, null, 2) + "\n");
 console.log(`wrote ${outPath}: ${cogs.length} cogs (${cogs.filter((c) => c.maps_to.length).length} mapped to catalog parts)`);
