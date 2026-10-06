@@ -1,6 +1,6 @@
 # Cog conformance harness
 
-> **Cogs project:** the operational detail for Cognitum Seeds, the Pi 5, fleets, tooling, testing on hardware and upstream work lives in the private cogs repo (`not-in-this-repository`, `docs/`; locally `not-in-this-repository`). Its decision records are the COG-NNN series. This WeftOS doc keeps only what WeftOS implements.
+> **Cogs project:** Seed fleet operations and private decision records are not in this repository. This document keeps the conformance harness that ships with the cog host.
 
 Card mesh-placement-08. Where a project gets its cogs: [cog-sources.md](cog-sources.md); running them: [operator-guide.md](operator-guide.md). Governing design: [ADR-100](../adr/adr-100-cog-workload-kind.md)
 (cog workload kind, run modes, v1 scope) and
