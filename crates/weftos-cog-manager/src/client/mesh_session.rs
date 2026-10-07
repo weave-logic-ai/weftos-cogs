@@ -9,6 +9,7 @@ use super::*;
 /// is token-guarded, so the challenge comes back 401. A host that registers keys returns the
 /// nonce, or 403 when the peer is not a tailnet or local address. 404 is the same old host
 /// once the route exists and the key store is absent.
+#[cfg(any(test, not(target_arch = "wasm32")))]
 fn challenge_reply(status: u16) -> ChallengeReply {
     match status {
         200..=299 => ChallengeReply::Sign,
@@ -18,6 +19,7 @@ fn challenge_reply(status: u16) -> ChallengeReply {
     }
 }
 
+#[cfg(any(test, not(target_arch = "wasm32")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ChallengeReply {
     Sign,

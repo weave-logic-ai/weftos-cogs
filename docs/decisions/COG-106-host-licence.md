@@ -40,13 +40,13 @@ Checkout grants, approvals, and revocation, as the host sees them, are those spe
 
 ### Not in this checkout
 
-This client does not already exist in weftos-cogs. It is being added on the WeftOS protocol branch and is not in this checkout. Searched at `056029567eb8` for `weftos.cog.v1`, `cog.check_run`, `daemon_unavailable`, `malformed_reply`, and `version_mismatch`: no matches in `*.rs`, `*.md`, or `*.toml`. Do not read a local path in this tree as the implementation of this decision. This record describes the decision, not a file to open.
+The client and the Cog Host gate are in this checkout (`crates/weftos-cog-protocol`, `crates/weftos-cog-host`). The daemon handler that answers them stays in WeftOS. This record does not close A1. A search at `056029567eb8` found no `weftos.cog.v1` client; that search described the tree before this import.
 
 ## Consequences
 
 - A Cog Host build cannot widen, forge, or skip a grant by deciding it locally. If the daemon cannot be asked, or the reply cannot be trusted, the cog stays stopped.
 - The host reports the daemon's spelling. A remedy (bind, checkout, approve, renew) is a daemon and operator action, specified in WeftOS ADR-106, not a host-local edit.
-- Until the protocol-branch client lands, this repository must not be documented as if the socket check were already wired.
+- The socket client is in this checkout. The daemon that answers it is not. This repository must not be documented as if it held the grant decision.
 
 ## What remains WeftOS ADR-106
 

@@ -1,78 +1,53 @@
-//! The ADR-106 start-time licence check in weft-cog-host (phase 3).
+//! The ADR-106 start-time licence check in weft-cog-host.
 //!
-//! The host asks the kernel's run gate ([`check_run`], through
-//! [`CognitumRunGate`]) before every spawn of a Cognitum-origin cog: the first
-//! start, every restart after an exit, and every start after the host itself
-//! restarts. A cog is Cognitum-origin when its record says `source: cognitum`
-//! or when its bytes are known Cognitum bytes (listed by a held grant, or a
-//! revoked artifact hash: [`CognitumRunGate::claims`]), so relabelling a
-//! checked-out binary as `local` does not escape the gate. The hashes are
-//! computed from the binary file that is about to run, never taken from the
-//! record or the install request.
+//! A configured licence directory means this Seed intends to be bound. The
+//! host then asks the local daemon. It does not decide the grant. No
+//! directory means the gate does not apply. A directory that cannot be read
+//! fails closed and does not open a socket.
 //!
-//! The licence state lives in its own directory ([`default_licence_dir`]):
+//! - `not_seed_bound` from the daemon, while the directory is configured, is
+//!   `binding_inactive` until a binding is imported.
+//! - A permit whose BLAKE3 is not the file that was hashed is `malformed_reply`.
+//! - Transport failures use `daemon_unavailable`, `malformed_reply`, `timeout`,
+//!   and `version_mismatch`. Grant refusals keep the daemon's spellings.
 //!
-//! - `config.json`: `{"mesh_id": "<64 hex>"}`, the mesh the Seed is bound to;
-//! - `trust.json`: an operator trust file (the `weaver` schema), whose
-//!   operator keys verify the binding, approvals and revocation notices;
-//! - the kernel's stores: `checkout_grants.json`, `checkout_approvals.json`,
-//!   `licence-bound.marker`, and the subject revocation list.
-//!
-//! Records reach it only as signed records ([`HostLicence::import`]: the
-//! binding, grants, approvals and revocation notices), each verified by the
-//! kernel code that verifies them on a mesh node.
-//!
-//! - **No directory**: the gate does not apply (`NotSeedBound`), exactly as a
-//!   kernel node that never held a binding.
-//! - **Configured, no binding yet**: fail closed, `binding_inactive`: a directory
-//!   with `config.json` and `trust.json` means the operator intends to bind.
-//! - **Directory present but unreadable** (no or bad config or trust file, a
-//!   poisoned store, an unreadable revocation list): fail closed, every
-//!   Cognitum-origin start is refused `binding_inactive`.
-//! - **Otherwise** the kernel verdict decides, with its refusal codes
-//!   (`binding_inactive`, `no_grant`, `grant_lapsed`, `not_in_grant`,
-//!   `hash_revoked`, `no_approval`).
-//!
-//! A lapse refuses the next start and leaves a running cog alone (ADR-106
-//! section 8, soft stop). A revoked artifact hash also stops a running cog
-//! ([`CognitumRunGate::revoked`], checked by the supervisor every tick).
+//! A lapse refuses the next start and leaves a running cog alone. A revoked
+//! artifact hash also stops a running cog (`RunGate::revoked`, every tick).
+//! On a transport error that poll returns false, so a daemon blip does not
+//! kill a cog that already started. A denial fails closed.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
-use clawft_kernel::licence::{
-    APPROVALS_FILE, AdmissionPosture, ApprovalStore, BOUND_MARKER, CheckoutGrantStore, Clock, CognitumRunGate,
-    GRANTS_FILE, LocalMeshId, MeshId, NoExtraChecks, RunPermit, RunRefusal, RunRequest, RunVerdict, SignedApproval,
-    SignedBinding, SignedGrant, check_run, system_clock,
-};
-use clawft_kernel::mesh_swarm_revoke::{SignedRevocation, verify_revocation};
-use clawft_kernel::revocation::RevocationList;
-use clawft_kernel::workload_pkg::TrustAnchors;
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use weftos_cog_protocol::{CallError, CheckRunParams, CheckRunResult, RefusalCode, DEFAULT_TIMEOUT, PROTOCOL};
 
-use crate::{CogRecord, Source};
+pub use weftos_cog_protocol::MAX_IMPORT_RECORDS;
+
+use crate::CogRecord;
+use crate::Source;
+
+#[path = "licence_backend.rs"]
+mod backend;
+
+pub(crate) use backend::LicenceBackend;
+#[cfg(unix)]
+use backend::DaemonLicence;
 
 /// Overrides the licence directory.
 pub const LICENCE_DIR_ENV: &str = "WEFT_COG_HOST_LICENCE_DIR";
-/// `{"mesh_id": "<64 hex>"}`.
+/// `{"mesh_id": "<64 lower-case hex>"}`.
 pub const CONFIG_FILE: &str = "config.json";
-/// Operator trust file.
-pub const TRUST_FILE: &str = "trust.json";
-/// The kernel revocation list's anchor file; the subject list sits beside it.
-const HOSTS_FILE: &str = "revoked_hosts.json";
-const SUBJECTS_FILE: &str = weftos_cog_repo::SUBJECTS_FILE_NAME;
 const MAX_CONFIG_BYTES: u64 = 256 * 1024;
-/// Most records of one kind accepted in one import.
-pub const MAX_IMPORT_RECORDS: usize = 512;
 /// Largest import body (file or `POST /licence/records`).
 pub const MAX_IMPORT_BYTES: usize = 2 * 1024 * 1024;
 
-/// The licence directory: `$WEFT_COG_HOST_LICENCE_DIR`, else `<root>/.licence`
-/// (a cog id can never start with a dot, so it cannot collide with a cog).
+/// The licence directory: `$WEFT_COG_HOST_LICENCE_DIR`, else `<root>/.licence`.
 pub fn default_licence_dir(root: &Path) -> PathBuf {
     match std::env::var(LICENCE_DIR_ENV) {
-        Ok(d) if !d.trim().is_empty() => PathBuf::from(d),
+        Ok(dir) if !dir.trim().is_empty() => PathBuf::from(dir),
         _ => root.join(".licence"),
     }
 }
@@ -83,304 +58,60 @@ struct HostConfig {
     mesh_id: String,
 }
 
-struct Stores {
-    anchors: Arc<TrustAnchors>,
-    grants: CheckoutGrantStore,
-    approvals: ApprovalStore,
-    revocations: Arc<RevocationList>,
-}
-
 enum State {
-    /// No licence directory: the gate does not apply.
     Unconfigured,
-    /// The directory exists but cannot be used: fail closed.
     Broken(String),
-    Ready(Box<Stores>),
+    Ready,
 }
 
-/// Size and mtime of every file the state is read from, to notice changes
-/// made by another process (`weft-cog-host licence import`).
 type Fingerprint = Vec<Option<(u64, SystemTime)>>;
 
-/// The host's licence state and run gate.
+/// The host's licence directory and the daemon it asks.
 pub struct HostLicence {
     dir: PathBuf,
-    clock: Clock,
     state: RwLock<(Fingerprint, Arc<State>)>,
+    daemon_socket: Option<PathBuf>,
+    daemon_timeout: Duration,
+    backend: Option<Arc<dyn LicenceBackend>>,
 }
 
-fn read_capped(path: &Path) -> Result<Vec<u8>, String> {
-    let len = std::fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?.len();
-    if len > MAX_CONFIG_BYTES {
-        return Err(format!("{} is too large", path.display()));
-    }
-    std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-/// Whether the licence directory is there: `Ok(false)` only for a definite not-found. Any other
-/// stat error (permissions, I/O, a dangling symlink loop) is not "absent": the gate must not fail open.
-fn dir_present(dir: &Path) -> Result<bool, String> {
-    match std::fs::metadata(dir) {
-        Ok(_) => Ok(true),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // A dangling symlink is NotFound from metadata but is still something put there.
-            match std::fs::symlink_metadata(dir) {
-                Ok(_) => Err(format!("{}: dangling link", dir.display())),
-                Err(e2) if e2.kind() == std::io::ErrorKind::NotFound => Ok(false),
-                Err(e2) => Err(format!("{}: {e2}", dir.display())),
-            }
-        }
-        Err(e) => Err(format!("{}: {e}", dir.display())),
-    }
-}
-
-fn load(dir: &Path, clock: &Clock) -> State {
-    match dir_present(dir) {
-        Ok(false) => return State::Unconfigured,
-        Err(e) => return State::Broken(e),
-        Ok(true) => {}
-    }
-    let cfg = read_capped(&dir.join(CONFIG_FILE)).and_then(|b| {
-        serde_json::from_slice::<HostConfig>(&b).map_err(|e| format!("{CONFIG_FILE}: {e}"))
-    });
-    let mesh = match cfg.map(|c| MeshId::from_hex(&c.mesh_id)) {
-        Ok(Some(m)) => m,
-        Ok(None) => return State::Broken(format!("{CONFIG_FILE}: mesh_id must be 64 hex characters")),
-        Err(e) => return State::Broken(e),
-    };
-    let anchors = match read_capped(&dir.join(TRUST_FILE)).and_then(|b| TrustAnchors::from_trust_json(&b)) {
-        Ok(a) => Arc::new(a),
-        Err(e) => return State::Broken(e),
-    };
-    let local = LocalMeshId::new(mesh);
-    let grants = CheckoutGrantStore::open_or_poisoned(dir, Arc::clone(&anchors), local.clone(), Arc::clone(clock));
-    let approvals = ApprovalStore::open_or_poisoned(dir, Arc::clone(&anchors), local);
-    let revocations = Arc::new(RevocationList::load(dir.join(HOSTS_FILE)));
-    grants.attach_revocations(Arc::clone(&revocations));
-    State::Ready(Box::new(Stores { anchors, grants, approvals, revocations }))
-}
-
-fn fingerprint(dir: &Path) -> Fingerprint {
-    [CONFIG_FILE, TRUST_FILE, GRANTS_FILE, APPROVALS_FILE, BOUND_MARKER, SUBJECTS_FILE]
-        .iter()
-        .map(|f| dir.join(f))
-        .chain([dir.to_path_buf()])
-        .map(|p| std::fs::metadata(p).ok().map(|m| (m.len(), m.modified().unwrap_or(SystemTime::UNIX_EPOCH))))
-        .collect()
-}
-
-/// Signed records for [`HostLicence::import`]. Every one is verified; the
-/// sender proves nothing by sending them.
+/// Signed records for [`HostLicence::import`]. The daemon verifies them.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Records {
-    /// The operator-signed Seed binding (v2).
+    /// Operator-signed Seed binding.
     #[serde(default)]
-    pub binding: Option<SignedBinding>,
-    /// Grants signed by the bound grant key, withdrawals included.
+    pub binding: Option<Value>,
+    /// Grants, withdrawals included.
     #[serde(default)]
-    pub grants: Vec<SignedGrant>,
+    pub grants: Vec<Value>,
     /// Operator hash approvals.
     #[serde(default)]
-    pub approvals: Vec<SignedApproval>,
-    /// Operator revocation notices (an `artifact_hash` one stops a running cog).
+    pub approvals: Vec<Value>,
+    /// Operator revocation notices.
     #[serde(default)]
-    pub revocations: Vec<SignedRevocation>,
+    pub revocations: Vec<Value>,
 }
 
-/// What [`HostLicence::import`] did with each record, in order.
+/// What one imported record did.
 #[derive(Debug, Clone, Serialize)]
 pub struct ImportLine {
     /// `binding`, `grant`, `approval` or `revocation`.
     pub kind: &'static str,
-    /// `applied`, `duplicate`, `ignored`, `applied_unsaved` or `refused`.
+    /// `applied`, `duplicate`, `ignored` or `refused`.
     pub outcome: String,
     /// Why it was refused.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
-fn line(kind: &'static str, r: Result<String, String>) -> ImportLine {
-    match r {
-        Ok(outcome) => ImportLine { kind, outcome, error: None },
-        Err(e) => ImportLine { kind, outcome: "refused".into(), error: Some(e) },
-    }
-}
-
-fn outcome<E: std::fmt::Display>(r: Result<clawft_kernel::licence::Outcome, E>) -> Result<String, String> {
-    use clawft_kernel::licence::Outcome as O;
-    r.map(|o| match o {
-        O::Applied => "applied",
-        O::AppliedUnsaved => "applied_unsaved",
-        O::Duplicate => "duplicate",
-        O::Ignored => "ignored",
-    }
-    .to_string())
-    .map_err(|e| e.to_string())
-}
-
-impl HostLicence {
-    /// Open the licence state in `dir` with the system clock.
-    pub fn open(dir: PathBuf) -> Self {
-        Self::with_clock(dir, system_clock())
-    }
-
-    /// [`Self::open`] with an explicit clock (tests).
-    pub fn with_clock(dir: PathBuf, clock: Clock) -> Self {
-        let fp = fingerprint(&dir);
-        let state = Arc::new(load(&dir, &clock));
-        Self { dir, clock, state: RwLock::new((fp, state)) }
-    }
-
-    /// The licence directory.
-    pub fn dir(&self) -> &Path {
-        &self.dir
-    }
-
-    fn state(&self) -> Arc<State> {
-        Arc::clone(&self.state.read().unwrap_or_else(|p| p.into_inner()).1)
-    }
-
-    /// Re-read the state when another process changed its files. Cheap (a
-    /// few `stat` calls); the supervisor calls it every tick.
-    pub fn refresh(&self) {
-        let fp = fingerprint(&self.dir);
-        let mut g = self.state.write().unwrap_or_else(|p| p.into_inner());
-        if g.0 != fp {
-            *g = (fp, Arc::new(load(&self.dir, &self.clock)));
-        }
-    }
-
-    /// Verify and apply signed records: revocations, then the binding, then
-    /// grants, then approvals. Each record is judged on its own.
-    pub fn import(&self, recs: &Records) -> Result<Vec<ImportLine>, String> {
-        if recs.grants.len() > MAX_IMPORT_RECORDS
-            || recs.approvals.len() > MAX_IMPORT_RECORDS
-            || recs.revocations.len() > MAX_IMPORT_RECORDS
-        {
-            return Err(format!("at most {MAX_IMPORT_RECORDS} records of each kind per import"));
-        }
-        if !dir_present(&self.dir)? {
-            return Err(format!(
-                "no licence directory at {}: create it with {CONFIG_FILE} and {TRUST_FILE} first",
-                self.dir.display()
-            ));
-        }
-        self.refresh();
-        let state = self.state();
-        let s = match &*state {
-            State::Ready(s) => s,
-            State::Broken(e) => return Err(format!("licence state unusable: {e}")),
-            State::Unconfigured => return Err("licence state is not configured".into()),
-        };
-        let mut out = Vec::new();
-        for r in &recs.revocations {
-            let res = verify_revocation(r, &s.anchors).map_err(|e| e.to_string()).and_then(|n| {
-                s.revocations
-                    .revoke_subject_by(n.kind, &n.id, &n.reason, "operator-notice")
-                    .map(|added| if added { "applied" } else { "duplicate" }.to_string())
-                    .map_err(|e| e.to_string())
-            });
-            out.push(line("revocation", res));
-        }
-        if let Some(b) = &recs.binding {
-            // The host consumes the binding to verify grants; it admits no
-            // mesh peers, so the admission posture is not its to check.
-            let posture = AdmissionPosture { enforce: true, verdict_source_bound: true, open_membership: false };
-            out.push(line("binding", outcome(s.grants.accept_binding(b, posture, &NoExtraChecks))));
-        }
-        for g in &recs.grants {
-            out.push(line("grant", outcome(s.grants.accept_grant(g))));
-        }
-        for a in &recs.approvals {
-            out.push(line("approval", outcome(s.approvals.accept(a))));
-        }
-        drop(state);
-        self.refresh();
-        Ok(out)
-    }
-
-    /// The state for `GET /licence` and `weft-cog-host licence status`.
-    pub fn status(&self) -> serde_json::Value {
-        match &*self.state() {
-            State::Unconfigured => serde_json::json!({"state": "unconfigured", "dir": self.dir.display().to_string()}),
-            State::Broken(e) => serde_json::json!({"state": "broken", "dir": self.dir.display().to_string(), "error": e}),
-            State::Ready(s) => serde_json::json!({
-                "state": "ready",
-                "dir": self.dir.display().to_string(),
-                "mesh_id": s.grants.local_mesh_id().get().map(|m| m.to_hex()),
-                "binding": s.grants.held_binding(),
-                "binding_in_effect": s.grants.binding_status().is_ok(),
-                "store_error": s.grants.poisoned().or_else(|| s.approvals.poisoned()),
-                "revocations_error": s.revocations.subjects_error(),
-                "grants": s.grants.grant_rows(),
-                "approvals": s.approvals.rows(),
-                "revoked_artifacts": s.revocations
-                    .list_subjects(Some(clawft_kernel::revocation::RevocationKind::ArtifactHash))
-                    .len(),
-            }),
-        }
-    }
-}
-
-impl CognitumRunGate for HostLicence {
-    fn check(&self, req: &RunRequest<'_>) -> Result<RunVerdict, RunRefusal> {
-        match &*self.state() {
-            State::Unconfigured => Ok(RunVerdict::NotSeedBound),
-            State::Broken(e) => Err(RunRefusal::BindingInactive(format!("licence state unusable: {e}"))),
-            State::Ready(s) => {
-                let v = check_run(&s.grants, Some(&s.approvals), req)?;
-                // A configured directory means the operator intends to bind this Seed: until a
-                // binding is imported, a Cognitum-origin start is refused rather than let through.
-                // (No directory at all stays `NotSeedBound`.)
-                if matches!(v, RunVerdict::NotSeedBound) {
-                    return Err(RunRefusal::BindingInactive(format!(
-                        "the licence directory {} is configured but holds no binding yet: import the signed binding first",
-                        self.dir.display()
-                    )));
-                }
-                if let (RunVerdict::Permit(_), Some(e)) = (&v, s.revocations.subjects_error()) {
-                    return Err(RunRefusal::BindingInactive(format!("revocation list unreadable: {e}")));
-                }
-                Ok(v)
-            }
-        }
-    }
-
-    fn claims(&self, sha256: &str, blake3: &str) -> bool {
-        match &*self.state() {
-            State::Ready(s) => s.grants.claims_artifact(sha256, blake3) || s.grants.is_hash_revoked(blake3),
-            _ => false,
-        }
-    }
-
-    fn revoked(&self, blake3: &str) -> bool {
-        match &*self.state() {
-            State::Ready(s) => s.grants.is_hash_revoked(blake3),
-            _ => false,
-        }
-    }
-}
-
-/// The (sha256, BLAKE3) of a binary, lower-case hex, from its bytes.
-pub fn hashes(bytes: &[u8]) -> (String, String) {
-    (weftos_cog_repo::sha256_hex(bytes), blake3::hash(bytes).to_hex().to_string())
-}
-
-/// A start the gate refused. `code` is the kernel run gate's stable code.
+/// A start the gate allowed. `blake3` is the file that was hashed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StartRefused {
-    /// `binding_inactive`, `no_grant`, `grant_lapsed`, `not_in_grant`,
-    /// `hash_revoked` or `no_approval`.
-    pub code: &'static str,
-    /// The full reason, with the remedy.
-    pub reason: String,
-}
-
-impl std::fmt::Display for StartRefused {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.reason)
-    }
+pub struct RunPermit {
+    pub grant_id: String,
+    pub approval_id: String,
+    /// BLAKE3 the daemon echoed. The supervisor stores the file hash separately.
+    pub blake3: String,
 }
 
 /// What a permitted Cognitum start ran, for the revocation sweep.
@@ -392,36 +123,390 @@ pub struct LicensedStart {
     pub permit: RunPermit,
 }
 
-/// Decide whether `rec` may start with these `bytes` (read from the file that
-/// will run). `Ok(None)`: not a Cognitum-origin cog, or the gate does not
-/// apply. Only `gate` decides; nothing in the cog's bytes or arguments does.
-pub fn check_start(gate: &dyn CognitumRunGate, rec: &CogRecord, bytes: &[u8]) -> Result<Option<LicensedStart>, StartRefused> {
+/// Answer of [`RunGate::check`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunAnswer {
+    /// The gate does not apply.
+    NotSeedBound,
+    /// Grant and approval cover the binary.
+    Permit {
+        grant_id: String,
+        approval_id: String,
+        blake3: String,
+    },
+}
+
+/// A refusal the supervisor can print. `shown` is the operator sentence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GateRefusal {
+    pub code: &'static str,
+    pub shown: String,
+}
+
+/// What the supervisor asks. Tests implement this with fixed answers.
+pub trait RunGate: Send + Sync {
+    fn check(&self, cog_id: &str, version: &str, sha256: &str, blake3: &str) -> Result<RunAnswer, GateRefusal>;
+    fn claims(&self, sha256: &str, blake3: &str) -> bool;
+    fn revoked(&self, blake3: &str) -> bool;
+}
+
+/// A start the gate refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartRefused {
+    pub code: &'static str,
+    pub reason: String,
+}
+
+impl std::fmt::Display for StartRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.reason)
+    }
+}
+
+fn read_capped(path: &Path) -> Result<Vec<u8>, String> {
+    let len = std::fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?.len();
+    if len > MAX_CONFIG_BYTES {
+        return Err(format!("{} is too large", path.display()));
+    }
+    std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn dir_present(dir: &Path) -> Result<bool, String> {
+    match std::fs::metadata(dir) {
+        Ok(_) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => match std::fs::symlink_metadata(dir) {
+            Ok(_) => Err(format!("{}: dangling link", dir.display())),
+            Err(e2) if e2.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(e2) => Err(format!("{}: {e2}", dir.display())),
+        },
+        Err(e) => Err(format!("{}: {e}", dir.display())),
+    }
+}
+
+fn is_hex64(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+fn load(dir: &Path) -> State {
+    match dir_present(dir) {
+        Ok(false) => return State::Unconfigured,
+        Err(e) => return State::Broken(e),
+        Ok(true) => {}
+    }
+    let cfg = read_capped(&dir.join(CONFIG_FILE))
+        .and_then(|bytes| serde_json::from_slice::<HostConfig>(&bytes).map_err(|e| format!("{CONFIG_FILE}: {e}")));
+    match cfg {
+        Ok(cfg) if is_hex64(&cfg.mesh_id) => State::Ready,
+        Ok(_) => State::Broken(format!("{CONFIG_FILE}: mesh_id must be 64 hex characters")),
+        Err(e) => State::Broken(e),
+    }
+}
+
+fn fingerprint(dir: &Path) -> Fingerprint {
+    [dir.join(CONFIG_FILE), dir.to_path_buf()]
+        .into_iter()
+        .map(|path| std::fs::metadata(path).ok().map(|meta| (meta.len(), meta.modified().unwrap_or(SystemTime::UNIX_EPOCH))))
+        .collect()
+}
+
+fn binding_inactive(inner: impl std::fmt::Display) -> GateRefusal {
+    GateRefusal {
+        code: "binding_inactive",
+        shown: format!("no Seed binding is in effect on this node ({inner})"),
+    }
+}
+
+fn transport(code: &'static str, shown: impl Into<String>) -> GateRefusal {
+    GateRefusal { code, shown: shown.into() }
+}
+
+fn shown_for_denial(code: RefusalCode, message: String) -> String {
+    match code {
+        RefusalCode::BindingInactive if !message.starts_with("no Seed binding is in effect") => {
+            format!("no Seed binding is in effect on this node ({message})")
+        }
+        RefusalCode::NotHolder if !message.starts_with("Cognitum cogs on this machine") => {
+            format!("Cognitum cogs on this machine run under its licence holder, not this daemon ({message})")
+        }
+        _ => message,
+    }
+}
+
+fn from_call(err: CallError) -> GateRefusal {
+    match err {
+        CallError::DaemonUnavailable(message) => transport("daemon_unavailable", message),
+        CallError::MalformedReply(message) => transport("malformed_reply", message),
+        CallError::Timeout => transport("timeout", "the daemon did not answer before the deadline"),
+        CallError::VersionMismatch(message) => transport("version_mismatch", message),
+        CallError::Denial { code, message } => GateRefusal { code: code.as_str(), shown: shown_for_denial(code, message) },
+    }
+}
+
+/// Operator remedy for a refusal code. The daemon decides; the host prints the matching sentence.
+fn remedy_for(code: &str, cog_id: &str, version: &str) -> String {
+    match code {
+        "binding_inactive" => "check `weaver workload node status`".into(),
+        "no_grant" | "not_in_grant" => format!("weaver cog checkout {cog_id}@{version} --arch <arch>"),
+        "grant_lapsed" => "renew through the steward (a lapsed licence stops new starts)".into(),
+        "hash_revoked" => "the artifact was revoked; it cannot run".into(),
+        "no_approval" => format!("weaver cog checkout approve {cog_id}@{version}"),
+        "not_holder" => {
+            format!("place {cog_id}@{version} from the cluster owner's daemon (the machine's licence holder)")
+        }
+        _ => "start the local WeftOS daemon and retry the licence check".into(),
+    }
+}
+
+impl HostLicence {
+    /// Open the licence directory.
+    pub fn open(dir: PathBuf) -> Self {
+        let fp = fingerprint(&dir);
+        let state = Arc::new(load(&dir));
+        Self {
+            dir,
+            state: RwLock::new((fp, state)),
+            daemon_socket: None,
+            daemon_timeout: DEFAULT_TIMEOUT,
+            backend: None,
+        }
+    }
+
+    /// Ask this socket instead of `$WEFTOS_RUNTIME_DIR/kernel.sock`.
+    pub fn with_daemon_socket(mut self, socket: impl Into<PathBuf>) -> Self {
+        self.daemon_socket = Some(socket.into());
+        self
+    }
+
+    /// How long one daemon call waits.
+    pub fn with_daemon_timeout(mut self, timeout: Duration) -> Self {
+        self.daemon_timeout = timeout;
+        self
+    }
+
+    /// Use `backend` instead of opening a socket. Tests pass a fixed answer.
+    pub fn with_backend(mut self, backend: Arc<dyn LicenceBackend>) -> Self {
+        self.backend = Some(backend);
+        self
+    }
+
+    /// The licence directory.
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    fn state(&self) -> Arc<State> {
+        Arc::clone(&self.state.read().unwrap_or_else(|poison| poison.into_inner()).1)
+    }
+
+    /// Re-read when `config.json` changes. The supervisor calls this every tick.
+    pub fn refresh(&self) {
+        let fp = fingerprint(&self.dir);
+        let mut guard = self.state.write().unwrap_or_else(|poison| poison.into_inner());
+        if guard.0 != fp {
+            *guard = (fp, Arc::new(load(&self.dir)));
+        }
+    }
+
+    fn backend_for_call(&self) -> Result<Arc<dyn LicenceBackend>, CallError> {
+        if let Some(backend) = &self.backend {
+            return Ok(Arc::clone(backend));
+        }
+        #[cfg(unix)]
+        {
+            let socket = self.resolve_socket()?;
+            Ok(Arc::new(DaemonLicence { socket, timeout: self.daemon_timeout }))
+        }
+        #[cfg(not(unix))]
+        {
+            Err(backend::non_unix_socket(&self.daemon_socket, self.daemon_timeout))
+        }
+    }
+
+    #[cfg(unix)]
+    fn resolve_socket(&self) -> Result<PathBuf, CallError> {
+        if let Some(path) = &self.daemon_socket {
+            return Ok(path.clone());
+        }
+        match std::env::var("WEFTOS_RUNTIME_DIR") {
+            Ok(dir) if !dir.trim().is_empty() => Ok(PathBuf::from(dir.trim()).join("kernel.sock")),
+            _ => Err(CallError::DaemonUnavailable(
+                "WEFTOS_RUNTIME_DIR is unset and no daemon socket was configured".into(),
+            )),
+        }
+    }
+
+    /// Forward signed records. The daemon verifies them and writes its store.
+    pub fn import(&self, recs: &Records) -> Result<Vec<ImportLine>, String> {
+        if recs.grants.len() > MAX_IMPORT_RECORDS
+            || recs.approvals.len() > MAX_IMPORT_RECORDS
+            || recs.revocations.len() > MAX_IMPORT_RECORDS
+        {
+            return Err(format!("at most {MAX_IMPORT_RECORDS} records of each kind per import"));
+        }
+        if !dir_present(&self.dir)? {
+            return Err(format!(
+                "no licence directory at {}: create it and write {CONFIG_FILE} before importing",
+                self.dir.display()
+            ));
+        }
+        self.refresh();
+        match &*self.state() {
+            State::Broken(e) => return Err(format!("licence state unusable: {e}")),
+            State::Unconfigured => return Err("licence state is not configured".into()),
+            State::Ready => {}
+        }
+        let params = import_params(recs)?;
+        let backend = self.backend_for_call().map_err(|e| e.to_string())?;
+        backend.import_records(&params).map_err(|e| e.to_string())
+    }
+
+    /// `GET /licence` and `weft-cog-host licence status`.
+    ///
+    /// A configured directory whose daemon is down is `broken` in this
+    /// document. The in-memory state stays ready, and the next start still
+    /// asks the daemon.
+    pub fn status(&self) -> Value {
+        let dir = self.dir.display().to_string();
+        match &*self.state() {
+            State::Unconfigured => json!({"state": "unconfigured", "dir": dir}),
+            State::Broken(e) => json!({"state": "broken", "dir": dir, "error": e}),
+            State::Ready => match self.backend_for_call().and_then(|backend| backend.licence_status()) {
+                Ok(mut value) => {
+                    let Some(obj) = value.as_object_mut() else {
+                        return json!({"state": "broken", "dir": dir, "error": "licence status was not an object"});
+                    };
+                    obj.remove("protocol");
+                    obj.insert("state".into(), json!("ready"));
+                    obj.insert("dir".into(), json!(dir));
+                    value
+                }
+                Err(e) => json!({"state": "broken", "dir": dir, "error": e.to_string()}),
+            },
+        }
+    }
+
+    fn check_ready(&self, cog_id: &str, version: &str, sha256: &str, blake3: &str) -> Result<RunAnswer, GateRefusal> {
+        let params = CheckRunParams::new(cog_id, version, sha256, blake3)
+            .map_err(|e| transport("malformed_reply", e.to_string()))?;
+        let backend = self.backend_for_call().map_err(from_call)?;
+        match backend.check_run(&params) {
+            Ok(CheckRunResult::NotSeedBound) => Err(binding_inactive(format!(
+                "the licence directory {} is configured but holds no binding yet: import the signed binding first",
+                self.dir.display()
+            ))),
+            Ok(CheckRunResult::Permit { grant_id, approval_id, blake3: permit_blake3 }) => {
+                if permit_blake3 != blake3 {
+                    return Err(transport("malformed_reply", "permit blake3 does not match the request"));
+                }
+                Ok(RunAnswer::Permit { grant_id, approval_id, blake3: permit_blake3 })
+            }
+            Err(e) => Err(from_call(e)),
+        }
+    }
+}
+
+fn import_params(recs: &Records) -> Result<Value, String> {
+    if recs.binding.as_ref().is_some_and(|value| !value.is_object()) {
+        return Err("binding must be an object".into());
+    }
+    for (name, rows) in [("grant", &recs.grants), ("approval", &recs.approvals), ("revocation", &recs.revocations)] {
+        if rows.iter().any(|row| !row.is_object()) {
+            return Err(format!("{name} must be an object"));
+        }
+    }
+    let mut params = serde_json::to_value(recs).map_err(|e| e.to_string())?;
+    let obj = params.as_object_mut().expect("records object");
+    if obj.get("binding").is_some_and(Value::is_null) {
+        obj.remove("binding");
+    }
+    obj.insert("protocol".into(), json!(PROTOCOL));
+    Ok(params)
+}
+
+impl RunGate for HostLicence {
+    fn check(&self, cog_id: &str, version: &str, sha256: &str, blake3: &str) -> Result<RunAnswer, GateRefusal> {
+        match &*self.state() {
+            State::Unconfigured => Ok(RunAnswer::NotSeedBound),
+            State::Broken(e) => Err(binding_inactive(format!("licence state unusable: {e}"))),
+            State::Ready => self.check_ready(cog_id, version, sha256, blake3),
+        }
+    }
+
+    fn claims(&self, sha256: &str, blake3: &str) -> bool {
+        if !matches!(&*self.state(), State::Ready) {
+            return false;
+        }
+        let Ok(backend) = self.backend_for_call() else {
+            return true;
+        };
+        backend.claims(sha256, blake3).unwrap_or(true)
+    }
+
+    fn revoked(&self, blake3: &str) -> bool {
+        if !matches!(&*self.state(), State::Ready) {
+            return false;
+        }
+        let Ok(backend) = self.backend_for_call() else {
+            return false;
+        };
+        match backend.revoked(blake3) {
+            Ok((revoked, _)) => revoked,
+            Err(CallError::Denial { .. }) => true,
+            Err(_) => false,
+        }
+    }
+}
+
+/// The (sha256, BLAKE3) of a binary, lower-case hex, from its bytes.
+pub fn hashes(bytes: &[u8]) -> (String, String) {
+    (weftos_cog_repo::sha256_hex(bytes), blake3::hash(bytes).to_hex().to_string())
+}
+
+/// Decide whether `rec` may start with these `bytes`.
+pub fn check_start(gate: &dyn RunGate, rec: &CogRecord, bytes: &[u8]) -> Result<Option<LicensedStart>, StartRefused> {
     let (sha256, blake3) = hashes(bytes);
     check_start_hashed(gate, rec, &sha256, &blake3)
 }
 
 /// [`check_start`] for hashes already computed from the bytes that will run.
-pub fn check_start_hashed(gate: &dyn CognitumRunGate, rec: &CogRecord, sha256: &str, blake3: &str) -> Result<Option<LicensedStart>, StartRefused> {
+pub fn check_start_hashed(
+    gate: &dyn RunGate,
+    rec: &CogRecord,
+    sha256: &str,
+    blake3: &str,
+) -> Result<Option<LicensedStart>, StartRefused> {
     if rec.source != Source::Cognitum && !gate.claims(sha256, blake3) {
         return Ok(None);
     }
-    let req = RunRequest { cog_id: &rec.id, version: &rec.version, sha256, blake3 };
-    match gate.check(&req) {
-        Ok(RunVerdict::NotSeedBound) => Ok(None),
-        Ok(RunVerdict::Permit(permit)) => Ok(Some(LicensedStart { blake3: blake3.to_string(), permit })),
-        Err(e) => Err(StartRefused {
-            code: e.code(),
-            reason: format!(
-                "licence run gate: [{}] {e} ({} {}, sha256 {}); remedy: {}",
-                e.code(),
-                rec.id,
-                rec.version,
-                &sha256[..16],
-                e.remedy(&rec.id, &rec.version)
-            ),
-        }),
+    match gate.check(cog_id_of(rec), &rec.version, sha256, blake3) {
+        Ok(RunAnswer::NotSeedBound) => Ok(None),
+        Ok(RunAnswer::Permit { grant_id, approval_id, blake3: permit_blake3 }) => Ok(Some(LicensedStart {
+            blake3: blake3.to_string(),
+            permit: RunPermit { grant_id, approval_id, blake3: permit_blake3 },
+        })),
+        Err(refusal) => Err(start_refused(&refusal, rec, sha256)),
     }
 }
+
+fn cog_id_of(rec: &CogRecord) -> &str {
+    &rec.id
+}
+
+fn start_refused(refusal: &GateRefusal, rec: &CogRecord, sha256: &str) -> StartRefused {
+    let remedy = remedy_for(refusal.code, &rec.id, &rec.version);
+    let prefix = &sha256[..sha256.len().min(16)];
+    StartRefused {
+        code: refusal.code,
+        reason: format!(
+            "licence run gate: [{}] {} ({} {}, sha256 {prefix}); remedy: {remedy}",
+            refusal.code, refusal.shown, rec.id, rec.version
+        ),
+    }
+}
+
+#[cfg(all(test, unix))]
+#[path = "licence_daemon_tests.rs"]
+mod daemon_tests;
 
 #[cfg(test)]
 #[path = "licence_tests.rs"]

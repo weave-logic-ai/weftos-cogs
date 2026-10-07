@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 mod revoked;
+mod runtime_dir;
 pub use revoked::{RevokedKeys, SUBJECTS_FILE_NAME};
 
 /// The pinned WeaveLogic release public key (raw Ed25519, hex). The matching private key lives

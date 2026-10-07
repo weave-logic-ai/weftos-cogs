@@ -82,9 +82,11 @@ pub struct Manager {
     /// User-local names and URLs. Tokens stay in `tokens`, never in this book.
     pub(crate) book: AddressBook,
     pub(crate) ip_draft: String,
+    #[cfg(not(target_arch = "wasm32"))]
     tail_rx: Option<std::sync::mpsc::Receiver<Result<Vec<BookEntry>, String>>>,
     pub(crate) tail_peers: Vec<BookEntry>,
     pub(crate) tail_note: String,
+    #[cfg(not(target_arch = "wasm32"))]
     tail_started: bool,
     pub(crate) connect_error: Option<String>,
     /// A connect is in flight. Cleared when the user opens the book without switching,
@@ -151,9 +153,11 @@ impl Manager {
             edge_open: Some(client::setting("WEFTOS_EDGE", "edge", "")).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
             book: AddressBook::load(),
             ip_draft: String::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             tail_rx: None,
             tail_peers: Vec::new(),
             tail_note: String::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             tail_started: false,
             connect_error: None,
             pending: true,

@@ -206,6 +206,7 @@ fn is_lan(ip: &str) -> bool {
 
 /// Peers from `tailscale status --json`. Self is not in `Peer`. A non-tailnet IP in that
 /// document is dropped. Prefers the IPv4 tailnet address for the cog-host URL.
+#[cfg(any(test, not(target_arch = "wasm32")))]
 pub fn peers_from_tailscale_status(body: &str) -> Result<Vec<BookEntry>, String> {
     let v: serde_json::Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
     let peers = v.get("Peer").and_then(|p| p.as_object()).ok_or_else(|| "tailscale status has no Peer map".to_string())?;
@@ -237,11 +238,6 @@ pub fn read_local_tailnet() -> Result<Vec<BookEntry>, String> {
         return Err(format!("tailscale status exited {}: {err}", out.status));
     }
     peers_from_tailscale_status(&String::from_utf8_lossy(&out.stdout))
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn read_local_tailnet() -> Result<Vec<BookEntry>, String> {
-    Err("tailscale status runs on this computer, not in the browser".into())
 }
 
 #[cfg(test)]

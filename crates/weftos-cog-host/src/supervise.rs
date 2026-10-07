@@ -14,9 +14,8 @@
 //! defence against a process with the host's own uid, which can edit the licence state, the cog
 //! records and the host itself; unclaimed (non-Cognitum) starts exec by path. See ADR-106, "Limits".
 
-use crate::licence::{check_start_hashed, hashes};
+use crate::licence::{check_start_hashed, hashes, RunGate};
 use crate::{load_records, save_record, CogRecord};
-use clawft_kernel::licence::CognitumRunGate;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
@@ -181,7 +180,7 @@ pub struct Supervisor {
     restarts: HashMap<String, u32>,
     last_exit: HashMap<String, String>,
     backoff_until: HashMap<String, Instant>,
-    gate: Option<Arc<dyn CognitumRunGate>>,
+    gate: Option<Arc<dyn RunGate>>,
     refusals: HashMap<String, &'static str>,
     /// (len, mtime) -> (sha256, blake3) of each cog binary last hashed, so a refused cog is not
     /// re-read at every backoff. A same-length swap inside the mtime granularity yields at worst a
@@ -210,7 +209,7 @@ impl Supervisor {
     }
 
     /// Ask `gate` before every spawn (ADR-106 start-time licence check).
-    pub fn set_licence_gate(&mut self, gate: Arc<dyn CognitumRunGate>) {
+    pub fn set_licence_gate(&mut self, gate: Arc<dyn RunGate>) {
         self.gate = Some(gate);
     }
 

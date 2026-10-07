@@ -21,10 +21,8 @@ weftos-cog-repo = { path = "../weftos-cog-repo", default-features = false }
 base64 = "0.22"
 # USB id table for /hw/usb (pure data, wasm-safe; no new third-party deps).
 weftos-cog-market = { path = "../weftos-cog-market" }
-# ADR-106 phase 3: the start-time licence check reuses the kernel's run gate and
-# licence stores (`licence`, gated on these four features). No workload-runtime,
-# so no reqwest/TLS.
-clawft-kernel = { workspace = true, features = ["native", "ecc", "exochain", "mesh"] }
+# weftos.cog.v1. The daemon remains the licence authority.
+weftos-cog-protocol = { path = "../weftos-cog-protocol" }
 blake3 = { workspace = true }
 ed25519-dalek = { workspace = true }
 

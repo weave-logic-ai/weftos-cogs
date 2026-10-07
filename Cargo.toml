@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cog-sensor-sources",
+    "crates/weftos-cog-companion",
+    "crates/weftos-cog-host",
+    "crates/weftos-cog-manager",
+    "crates/weftos-cog-market",
+    "crates/weftos-cog-protocol",
+    "crates/weftos-cog-repo",
+    "crates/weftos-cog-sources",
+    "crates/weftos-ecg-scope",
+    "crates/weftos-guide-view",
+    "crates/weftos-sensor-guide",
+    "crates/weftos-sound-scope",
+    "crates/weftos-tof-scope",
+]
+
+[workspace.package]
+version = "0.8.3"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/weave-logic-ai/weftos-cogs"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+blake3 = "1.5"
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+
+[profile.release-wasm]
+inherits = "release"
+opt-level = "z"
