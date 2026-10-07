@@ -4,7 +4,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { handleRpc, type Env } from "./mcp";
-import { expandedSearch, searchCogs } from "./search";
+import { catalogRelease, expandedSearch, searchCogs } from "./search";
 import { activityFor, pulse, recordEvent, recordLook, type Activity } from "./activity";
 import { guideFor } from "./guides";
 
@@ -465,10 +465,28 @@ app.post("/api/cog-request", async (c) => {
   return c.json({ ok: true, status: "requested", part_id: partId });
 });
 
-// Full export, so the console/appliance can embed a snapshot.
+// Identity of the canonical catalog file this database was seeded from.
+app.get("/api/catalog/release", async (c) => {
+  const row = await catalogRelease(c.env.DB);
+  if (!row) return c.json({ error: "catalog release not seeded" }, 404);
+  return c.json(row);
+});
+
+// Full export, so the console/appliance can embed a snapshot. The digest is the seed's
+// record of the canonical file, not a hash of this reconstructed JSON.
 app.get("/api/catalog.json", async (c) => {
   const rows = (await c.env.DB.prepare("SELECT type,data FROM parts WHERE status='published'").all()).results as any[];
-  const cat: any = { schema: 1, source: "sensor-explorer", projects: [], modules: [], chips: [] };
+  const rel = await catalogRelease(c.env.DB);
+  const cat: any = {
+    schema: rel?.schema ?? 1,
+    generated: rel?.generated ?? "",
+    version: rel?.version ?? "",
+    digest: rel?.digest ?? "",
+    source: rel?.source_path ?? "crates/cog-market/catalog/catalog.json",
+    projects: [],
+    modules: [],
+    chips: [],
+  };
   for (const r of rows) (cat[`${r.type}s`] ||= []).push(JSON.parse(r.data as string));
   return c.json(cat);
 });
@@ -760,7 +778,8 @@ table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft);color:var(-
 <header>
   <div class=brand>
     <h1><span class=mark aria-hidden=true></span>${name}</h1>
-    <p class=sub>A browsable, contributable hardware catalog with an MCP agent surface. <a href="/api/facets">facets</a> &middot; <a href="/api/catalog.json">catalog.json</a> &middot; <code>POST /mcp</code></p>
+    <p class=sub>A browsable, contributable hardware catalog with an MCP agent surface. <a href="/api/facets">facets</a> &middot; <a href="/api/catalog.json">catalog.json</a> &middot; <a href="/api/catalog/release">catalog release</a> &middot; <code>POST /mcp</code></p>
+    <p class=sub id=catalogrel></p>
   </div>
   <a class=seedbanner href="https://cognitum.one/a/9PUnUY" target=_blank rel=noopener>
     <span class=seedk><span class=mark aria-hidden=true></span>Cognitum</span>
@@ -1451,7 +1470,8 @@ function openGuide(id, title){
     });
     return ready.then(function(m){
       if(seq!==guideSeq)return;
-      status.textContent='';
+      var rel=window.__catalogRel;
+      status.textContent=rel&&rel.digest?('catalog '+rel.version+' '+rel.digest):'';
       return m.open_guide('guidecanvas', json);
     });
   }).catch(function(){
@@ -1691,6 +1711,12 @@ fetch('/api/cogs').then(function(r){return r.json();}).then(function(d){
   document.getElementById('ct-cogs').textContent=nfmt(COGS.all.length);
 }).catch(function(){});
 fetch('/api/pulse').then(function(r){return r.json();}).then(renderPulse).catch(function(){});
+fetch('/api/catalog/release').then(function(r){return r.json();}).then(function(d){
+  if(!d||!d.digest)return;
+  window.__catalogRel=d;
+  var el=document.getElementById('catalogrel');
+  if(el)el.textContent='catalog '+d.version+' '+d.digest;
+}).catch(function(){});
 </script>
 </body></html>`;
 }

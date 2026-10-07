@@ -9,6 +9,13 @@
 // Expanding: a catalog search that dead-ends (few/no hits) does NOT stop there — the same query is
 // also run against the imported `pool` and the `cogs` registry, so results are never a dead end.
 
+/** The seeded identity of `crates/cog-market/catalog/catalog.json`. Empty until the seed runs. */
+export async function catalogRelease(db: D1Database) {
+  return db.prepare(
+    "SELECT version, digest, generated, source_path, schema FROM catalog_release WHERE id=1"
+  ).first<{ version: string; digest: string; generated: string; source_path: string; schema: number }>();
+}
+
 export interface Env {
   DB: D1Database;
   EXPLORER_NAME?: string;

@@ -2,7 +2,7 @@
 // single-response mode). A harness connects here as an MCP tool server and can search, read, browse
 // the tree, get a suggestion for a task, and (with contribute scope) propose a new part.
 
-import { type Env, expandedSearch, searchPool, searchCogs } from "./search";
+import { catalogRelease, type Env, expandedSearch, searchPool, searchCogs } from "./search";
 import { recordEvent, recordLook } from "./activity";
 export type { Env };
 
@@ -11,6 +11,11 @@ const VERSION = "0.2.0";
 type Scope = "read" | "contribute" | "admin";
 
 const TOOLS = [
+  {
+    name: "catalog_release",
+    description: "The canonical hardware catalog identity: version (the catalog generated date), SHA-256 digest of crates/cog-market/catalog/catalog.json, and the source path. The database is a seed of that file, not the source of truth.",
+    inputSchema: { type: "object", properties: {} },
+  },
   {
     name: "search_sensors",
     description: "Search the hardware catalog (sensors, modules, chips, projects) by keyword. Query is tokenized and ALL tokens must match (with a substring fallback), so 'QM33120W' matches 'QM33120WTR13'. When the curated catalog is thin, the result also includes matching imported-pool parts (source:'pool') and cog registry hits (source:'cog') so a search never dead-ends.",
@@ -92,6 +97,11 @@ function safeJson(s: any): any {
 
 async function callTool(name: string, args: any, env: Env, scope: Scope) {
   const DB = env.DB;
+  if (name === "catalog_release") {
+    const row = await catalogRelease(DB);
+    if (!row) return { ...text("catalog release not seeded"), isError: true };
+    return text(row);
+  }
   if (name === "search_sensors") {
     const limit = Math.min(Math.max(1, args.limit || 20), 100);
     const exp = await expandedSearch(DB, String(args.query || ""), { type: args.type, kind: args.kind, limit });
@@ -107,7 +117,8 @@ async function callTool(name: string, args: any, env: Env, scope: Scope) {
     const byKind = (await DB.prepare("SELECT kind,COUNT(*) n FROM parts WHERE type='module' AND status='published' GROUP BY kind").all()).results;
     const byVendor = (await DB.prepare("SELECT vendor,COUNT(*) n FROM parts WHERE vendor<>'' AND status='published' GROUP BY vendor ORDER BY n DESC LIMIT 20").all()).results;
     const byCat = (await DB.prepare("SELECT category,COUNT(*) n FROM parts WHERE category<>'' AND status='published' GROUP BY category ORDER BY n DESC LIMIT 20").all()).results;
-    return text({ by_type: byType, module_kinds: byKind, top_vendors: byVendor, categories: byCat });
+    const release = await catalogRelease(DB);
+    return text({ catalog: release, by_type: byType, module_kinds: byKind, top_vendors: byVendor, categories: byCat });
   }
   if (name === "suggest_for_task") {
     const toks = String(args.need || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 2).slice(0, 8);

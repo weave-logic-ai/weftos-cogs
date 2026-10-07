@@ -1,14 +1,14 @@
-// ADR-104 guide bundles copied from cog-market/catalog/guides.
-// Each value is the JSON a running cog serves at GET /guide.
+// ADR-104 guide bundles. The canonical files live in cog-market. Each value is the JSON
+// a running cog serves at GET /guide.
 
-import bridge from "../guides/bridge.json";
-import hlkAs201 from "../guides/hlk-as201.json";
-import ld2450 from "../guides/ld2450-radar.json";
-import mentraLive from "../guides/mentra-live.json";
-import rd03e from "../guides/rd-03e.json";
-import sen0213 from "../guides/sen0213-ecg.json";
-import sen0628 from "../guides/sen0628-tof.json";
-import soundDetect from "../guides/sound-detect.json";
+import bridge from "../../../crates/cog-market/catalog/guides/bridge.json";
+import hlkAs201 from "../../../crates/cog-market/catalog/guides/hlk-as201.json";
+import ld2450 from "../../../crates/cog-market/catalog/guides/ld2450-radar.json";
+import mentraLive from "../../../crates/cog-market/catalog/guides/mentra-live.json";
+import rd03e from "../../../crates/cog-market/catalog/guides/rd-03e.json";
+import sen0213 from "../../../crates/cog-market/catalog/guides/sen0213-ecg.json";
+import sen0628 from "../../../crates/cog-market/catalog/guides/sen0628-tof.json";
+import soundDetect from "../../../crates/cog-market/catalog/guides/sound-detect.json";
 
 export const GUIDES: Record<string, unknown> = {
   bridge: bridge as unknown,

@@ -16,6 +16,7 @@ guides = []
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
 # Lib only: the WeaveLogic Registry types + Ed25519 verify, without the native CLI deps (reqwest/pkcs8),
 # so this crate (and the egui/WASM manager that uses it) compiles for wasm32.
 cog-repo = { path = "../cog-repo", default-features = false }

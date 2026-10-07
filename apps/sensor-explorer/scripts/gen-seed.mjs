@@ -1,11 +1,25 @@
-// Generate seed.sql for D1 from a catalog.json. One INSERT per module/chip/project into `parts`,
-// with promoted columns (name/vendor/kind/category/search/tags) and the full record in `data`.
-// Usage: node scripts/gen-seed.mjs catalog.seed.json seed.sql
+// Generate seed.sql for D1 from the canonical catalog.
+// One INSERT per module/chip/project into `parts`, plus one `catalog_release` row whose
+// digest is SHA-256 of the raw catalog file. The default input is
+// crates/cog-market/catalog/catalog.json. Do not keep a second snapshot.
+// Usage: node scripts/gen-seed.mjs [catalog.json] [seed.sql]
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const [, , inPath = "catalog.seed.json", outPath = "seed.sql"] = process.argv;
-const cat = JSON.parse(readFileSync(inPath, "utf8"));
+const here = dirname(fileURLToPath(import.meta.url));
+const defaultIn = resolve(here, "../../../crates/cog-market/catalog/catalog.json");
+const [, , inPath = defaultIn, outPath = "seed.sql"] = process.argv;
+const bytes = readFileSync(inPath);
+const digest = createHash("sha256").update(bytes).digest("hex");
+const cat = JSON.parse(bytes.toString("utf8"));
+const version = String(cat.generated || "");
+const schema = Number(cat.schema);
+if (!version || !Number.isInteger(schema) || !/^[0-9a-f]{64}$/.test(digest)) {
+  console.error("catalog identity missing: need generated, integer schema, and a sha256 digest");
+  process.exit(1);
+}
 const q = (s) => "'" + String(s ?? "").replaceAll("'", "''") + "'";
 const hay = (...xs) => xs.flat().filter(Boolean).join(" ").toLowerCase();
 // Stable item hash: wh_ + hex(SHA-256('<type>:<id>'))[:16].
@@ -36,6 +50,12 @@ for (const p of cat.projects || []) {
   row(p.id, "project", p.name, "", "", p.category || "", p.modules || [], search, p);
 }
 
-const header = `-- Generated from ${inPath} (${cat.modules?.length || 0} modules, ${cat.chips?.length || 0} chips, ${cat.projects?.length || 0} projects)\n`;
+const sourcePath = "crates/cog-market/catalog/catalog.json";
+const header =
+  `-- Generated from ${sourcePath} (${cat.modules?.length || 0} modules, ${cat.chips?.length || 0} chips, ${cat.projects?.length || 0} projects)\n` +
+  `-- catalog version ${version} sha256 ${digest}\n` +
+  `INSERT OR REPLACE INTO catalog_release (id, version, digest, generated, source_path, schema) VALUES (` +
+  [1, q(version), q(digest), q(version), q(sourcePath), schema].join(",") +
+  `);\n`;
 writeFileSync(outPath, header + rows.join("\n") + "\n");
-console.log(`wrote ${outPath}: ${rows.length} rows`);
+console.log(`wrote ${outPath}: ${rows.length} rows version ${version} digest ${digest}`);

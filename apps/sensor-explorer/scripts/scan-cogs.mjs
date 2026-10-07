@@ -1,15 +1,17 @@
 // Scan the cogs-bridge source tree for cog.toml manifests and emit cogs.seed.json — the cog
 // registry that makes cogs discoverable in the Sensor Explorer. Each record carries the manifest
 // facts {id,name,category,version,description,store_id,hardware_requirement,bind_port} plus
-// `maps_to`: the catalog part ids the cog works with (verified against catalog.seed.json).
+// `maps_to`: the catalog part ids the cog works with (verified against the canonical catalog).
 //
-// Usage: node scripts/scan-cogs.mjs <cogsDir> [catalog.seed.json] [cogs.seed.json]
+// Usage: node scripts/scan-cogs.mjs <cogsDir> [catalog.json] [cogs.seed.json]
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const [, , cogsDirArg, catPath = "catalog.seed.json", outPath = "cogs.seed.json"] = process.argv;
+const defaultCatalog = resolve(dirname(fileURLToPath(import.meta.url)), "../../../crates/cog-market/catalog/catalog.json");
+const [, , cogsDirArg, catPath = defaultCatalog, outPath = "cogs.seed.json"] = process.argv;
 if (!cogsDirArg) {
-  console.error("usage: node scripts/scan-cogs.mjs <cogsDir> [catalog.seed.json] [cogs.seed.json]");
+  console.error("usage: node scripts/scan-cogs.mjs <cogsDir> [catalog.json] [cogs.seed.json]");
   process.exit(1);
 }
 const cogsDir = cogsDirArg;

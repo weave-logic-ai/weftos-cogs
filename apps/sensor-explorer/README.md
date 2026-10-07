@@ -1,8 +1,9 @@
 # WeftOS Sensor Explorer
 
 A browsable, contributable hardware catalog (sensors → modules → chips) with an **MCP agent
-surface**, on **Cloudflare Workers + D1**. Seeded from the WeftOS `catalog.json` (139 modules, 96
-chips, 3 projects, with datasheets, Mouser buy links, and datasheet-critical notes).
+surface**, on **Cloudflare Workers + D1**. Seeded from
+`crates/cog-market/catalog/catalog.json`. That file is the canonical catalog. This app does
+not keep a second copy.
 
 This is **phase 1, MCP-first**: the agent API (search / get / tree / suggest / add) + public read
 REST + a minimal landing page. The rich tree-browse UI and the human contribution/approval flow are
@@ -11,10 +12,9 @@ next.
 ## Layout
 
 - `src/index.ts` — Worker: `POST /mcp` (authed), public read REST, landing page.
-- `src/mcp.ts` — MCP JSON-RPC tools: `search_sensors`, `get_part`, `list_tree`, `suggest_for_task`, `add_part`.
+- `src/mcp.ts` — MCP JSON-RPC tools: `catalog_release`, `search_sensors`, `get_part`, `list_tree`, `suggest_for_task`, `add_part`.
 - `migrations/0001_init.sql` — D1 schema (`parts`, `api_keys`, `contributions`).
-- `scripts/gen-seed.mjs` — turns `catalog.seed.json` into `seed.sql`.
-- `catalog.seed.json` — a snapshot of the WeftOS catalog (re-copy to refresh).
+- `scripts/gen-seed.mjs` — turns `crates/cog-market/catalog/catalog.json` into `seed.sql` and records its version and SHA-256 in `catalog_release`.
 
 ## Deploy (you run these — I can't auth to your Cloudflare account)
 
@@ -26,7 +26,10 @@ wrangler d1 create sensor-explorer
 
 # 2. Schema + seed
 npm run db:migrate            # applies migrations/0001_init.sql (remote)
-npm run seed:gen              # catalog.seed.json -> seed.sql
+# catalog_release is migrations/0007_catalog_release.sql. Apply pending
+# migrations before the seed, or the release INSERT fails:
+#   npx wrangler d1 migrations apply sensor-explorer --remote
+npm run seed:gen              # canonical catalog.json -> seed.sql
 npm run db:seed               # loads seed.sql into D1 (remote)
 
 # 3. A bootstrap API key for the MCP/write surface (any strong random string)
@@ -57,17 +60,15 @@ Issue scoped keys by inserting into `api_keys` (`key`, `owner`, `scope` = read\|
 ## Read API (public)
 
 `/api/tree` · `/api/search?q=&type=&limit=` · `/api/parts/:id` · `/api/catalog.json` (full export,
-for the console/appliance to embed) · `/healthz`.
+for the console/appliance to embed) · `/api/catalog/release` (version and SHA-256 of the
+canonical file) · `/healthz`.
 
 ## Refresh the catalog
 
-Re-copy the latest snapshot and reseed:
-
-From this directory:
+From this directory, regenerate the seed from the canonical file and load it:
 
 ```bash
-cp ../../crates/cog-market/catalog/catalog.json catalog.seed.json
 npm run seed:gen
 ```
 
-`npm run db:seed` applies `seed.sql` to the remote D1 database. `npm run db:seed:local` applies it locally.
+`npm run db:seed` applies `seed.sql` to the remote D1 database. `npm run db:seed:local` applies it locally. The remote database is not the canonical catalog.

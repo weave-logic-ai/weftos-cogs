@@ -75,6 +75,20 @@ step "catalog seed"
 seed="$(mktemp)"
 node apps/sensor-explorer/scripts/gen-seed.mjs crates/cog-market/catalog/catalog.json "$seed" || fail "gen-seed"
 [ -s "$seed" ] || fail "empty catalog seed"
+grep -q "INSERT OR REPLACE INTO catalog_release" "$seed" || fail "catalog release row missing"
+digest="$(node -e 'const {createHash}=require("crypto"); const fs=require("fs"); process.stdout.write(createHash("sha256").update(fs.readFileSync("crates/cog-market/catalog/catalog.json")).digest("hex"))')"
+grep -q "$digest" "$seed" || fail "seed digest mismatch"
+export CATALOG_SHA256="$digest"
+# The workspace tests ran before this digest existed in the environment.
+# Re-run the one comparison so the Rust embed and the node file hash are the same bytes.
+cargo test --locked -p cog-market --lib bundled_sha256_is_the_raw_catalog_bytes || fail "catalog digest rust"
+(
+  cd apps/sensor-explorer
+  npx --no-install wrangler d1 execute sensor-explorer --local --persist-to .wrangler/gate-d1 --file "$seed" || exit 1
+  out="$(npx --no-install wrangler d1 execute sensor-explorer --local --persist-to .wrangler/gate-d1 --command "SELECT digest FROM catalog_release WHERE id=1")" || exit 1
+  printf '%s\n' "$out"
+  printf '%s\n' "$out" | grep -q "$CATALOG_SHA256" || exit 1
+) || fail "catalog release"
 rm -f "$seed"
 
 step "private registry round trip"

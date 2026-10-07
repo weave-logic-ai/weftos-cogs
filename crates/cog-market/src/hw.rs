@@ -198,6 +198,14 @@ impl HwCatalog {
         Self::parse(CATALOG_JSON.as_bytes()).expect("embedded catalog.json is valid")
     }
 
+    /// SHA-256 hex of the raw `catalog/catalog.json` bytes. Same digest the Sensor Explorer
+    /// seed records. Computed once.
+    pub fn bundled_sha256() -> &'static str {
+        use std::sync::OnceLock;
+        static DIGEST: OnceLock<String> = OnceLock::new();
+        DIGEST.get_or_init(|| sha256_hex(CATALOG_JSON.as_bytes())).as_str()
+    }
+
     pub fn project(&self, id: &str) -> Option<&Project> {
         self.projects.iter().find(|p| p.id == id)
     }
@@ -270,9 +278,25 @@ impl HwCatalog {
     }
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bundled_sha256_is_the_raw_catalog_bytes() {
+        let hex = HwCatalog::bundled_sha256();
+        assert_eq!(hex.len(), 64);
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(hex, sha256_hex(CATALOG_JSON.as_bytes()));
+        if let Ok(expect) = std::env::var("CATALOG_SHA256") {
+            assert_eq!(hex, expect, "node digest of catalog.json");
+        }
+    }
 
     #[test]
     fn shipped_catalog_parses_and_links_resolve() {

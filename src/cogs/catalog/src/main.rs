@@ -2,8 +2,9 @@
 //!
 //! An APP cog (not a sensor). It HTTP-serves the WeftOS hardware-catalog browse page
 //! (Projects -> Modules -> Chips) and the catalog JSON, host-managed like the sensor cogs, so the
-//! appliance offers the catalog on the mesh. It embeds a snapshot of `catalog.json` and a
-//! self-contained viewer; it reads no sensor and writes nothing to the store. Implements the
+//! appliance offers the catalog on the mesh. It embeds
+//! `crates/cog-market/catalog/catalog.json` and a self-contained viewer; it reads no sensor
+//! and writes nothing to the store. Implements the
 //! ADR-001 cog-as-plugin contract.
 //!
 //! Usage:
@@ -14,7 +15,7 @@
 //! Routes (all with Access-Control-Allow-Origin: *):
 //!   GET / or /index.html  -> the viewer HTML (text/html)
 //!   GET /catalog.json      -> the embedded catalog (application/json)
-//!   GET /healthz           -> {"ok":true}
+//!   GET /healthz           -> {"ok":true,"version":"<generated>","digest":"<sha256>"}
 //!   else                   -> 404
 
 use std::io::{Read, Write};
@@ -22,8 +23,8 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 
 const TAG: &str = "[cog-catalog]";
 
-/// Snapshot of the catalog, embedded at build time.
-const CATALOG_JSON: &str = include_str!("../catalog.json");
+/// Canonical catalog, the same file Cog Market and Sensor Explorer seed from.
+const CATALOG_JSON: &str = include_str!("../../../../crates/cog-market/catalog/catalog.json");
 
 /// Self-contained viewer page (ported verbatim from scripts/gen-catalog-viewer.py `PAGE`).
 /// `__DATA__` is replaced at serve time with the embedded catalog JSON.
@@ -101,7 +102,7 @@ function render(){
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(e=>e.classList.remove('on'));t.classList.add('on');tab=t.dataset.t;kind='all';render()});
 Q.oninput=()=>{q=Q.value;render()};
-document.getElementById('stat').textContent=`${CATALOG.projects.length} projects · ${CATALOG.modules.length} modules · ${CATALOG.chips.length} chips`;
+document.getElementById('stat').textContent=`${CATALOG.generated||''} · __DIGEST__ · ${CATALOG.projects.length} projects · ${CATALOG.modules.length} modules · ${CATALOG.chips.length} chips`;
 render();
 </script></body></html>"##;
 
@@ -133,20 +134,58 @@ fn request_path(req: &str) -> &str {
         .unwrap_or("/")
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+fn catalog_digest() -> &'static str {
+    use std::sync::OnceLock;
+    static DIGEST: OnceLock<String> = OnceLock::new();
+    DIGEST
+        .get_or_init(|| sha256_hex(CATALOG_JSON.as_bytes()))
+        .as_str()
+}
+
+fn catalog_version() -> &'static str {
+    use std::sync::OnceLock;
+    static VERSION: OnceLock<String> = OnceLock::new();
+    VERSION
+        .get_or_init(|| {
+            let v: serde_json::Value =
+                serde_json::from_str(CATALOG_JSON).expect("catalog.json parses");
+            v["generated"].as_str().unwrap_or("").to_string()
+        })
+        .as_str()
+}
+
 /// (status line, content-type, body) for a request path.
 fn route(path: &str) -> (&'static str, &'static str, String) {
     // Strip any query string.
     let p = path.split('?').next().unwrap_or(path);
     if p == "/" || p == "/index.html" {
+        let html = VIEWER_HTML.replace("__DIGEST__", catalog_digest());
         (
             "200 OK",
             "text/html; charset=utf-8",
-            VIEWER_HTML.replace("__DATA__", CATALOG_JSON),
+            html.replace("__DATA__", CATALOG_JSON),
         )
     } else if p == "/catalog.json" {
         ("200 OK", "application/json", CATALOG_JSON.to_string())
     } else if p == "/healthz" {
-        ("200 OK", "application/json", r#"{"ok":true}"#.to_string())
+        (
+            "200 OK",
+            "application/json",
+            serde_json::json!({
+                "ok": true,
+                "version": catalog_version(),
+                "digest": catalog_digest(),
+            })
+            .to_string(),
+        )
     } else {
         (
             "404 Not Found",
@@ -240,9 +279,10 @@ mod tests {
         assert!(ct.starts_with("text/html"));
         assert!(body.contains("Hardware Catalog"));
         assert!(
-            !body.contains("__DATA__"),
-            "placeholder must be substituted"
+            !body.contains("__DATA__") && !body.contains("__DIGEST__"),
+            "placeholders must be substituted"
         );
+        assert!(body.contains(catalog_digest()));
 
         let (st, ct, body) = route("/catalog.json");
         assert_eq!(st, "200 OK");
@@ -251,7 +291,14 @@ mod tests {
 
         let (st, _, body) = route("/healthz");
         assert_eq!(st, "200 OK");
-        assert_eq!(body, r#"{"ok":true}"#);
+        let health: serde_json::Value = serde_json::from_str(&body).expect("healthz json");
+        assert_eq!(health["ok"], true);
+        assert_eq!(health["digest"], catalog_digest());
+        assert_eq!(health["version"], catalog_version());
+        assert_eq!(catalog_digest(), sha256_hex(CATALOG_JSON.as_bytes()));
+        if let Ok(expect) = std::env::var("CATALOG_SHA256") {
+            assert_eq!(catalog_digest(), expect, "node digest of catalog.json");
+        }
 
         let (st, _, _) = route("/nope");
         assert_eq!(st, "404 Not Found");

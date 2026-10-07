@@ -358,10 +358,156 @@ dependencies = [
 ]
 
 [[package]]
+name = "cog-companion"
+version = "0.8.3"
+dependencies = [
+ "console_error_panic_hook",
+ "eframe",
+ "ehttp",
+ "sensor-guide",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+]
+
+[[package]]
+name = "cog-ecg-scope"
+version = "0.8.3"
+dependencies = [
+ "cog-companion",
+ "eframe",
+ "egui_plot",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-time",
+]
+
+[[package]]
+name = "cog-host"
+version = "0.8.3"
+dependencies = [
+ "base64 0.22.1",
+ "blake3",
+ "cog-market",
+ "cog-protocol",
+ "cog-repo",
+ "ed25519-dalek",
+ "libc",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "cog-manager"
+version = "0.8.3"
+dependencies = [
+ "base64 0.22.1",
+ "cog-market",
+ "cog-repo",
+ "console_error_panic_hook",
+ "ed25519-dalek",
+ "eframe",
+ "ehttp",
+ "sensor-guide",
+ "serde",
+ "serde_json",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+]
+
+[[package]]
+name = "cog-market"
+version = "0.8.3"
+dependencies = [
+ "cog-market",
+ "cog-repo",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "cog-protocol"
+version = "0.8.3"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "cog-repo"
+version = "0.8.3"
+dependencies = [
+ "ed25519-dalek",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "cog-sensor-sources"
 version = "0.1.1"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "cog-sound-scope"
+version = "0.8.3"
+dependencies = [
+ "cog-companion",
+ "eframe",
+ "egui_plot",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-time",
+]
+
+[[package]]
+name = "cog-sources"
+version = "0.8.3"
+dependencies = [
+ "chrono",
+ "cog-host",
+ "cog-market",
+ "cog-repo",
+ "ed25519-dalek",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml",
+]
+
+[[package]]
+name = "cog-tof-scope"
+version = "0.8.3"
+dependencies = [
+ "cog-companion",
+ "eframe",
+ "egui_plot",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-time",
 ]
 
 [[package]]
@@ -1209,6 +1355,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "guide-view"
+version = "0.8.3"
+dependencies = [
+ "console_error_panic_hook",
+ "eframe",
+ "sensor-guide",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -2719,6 +2878,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 
 [[package]]
+name = "sensor-guide"
+version = "0.8.3"
+dependencies = [
+ "base64 0.22.1",
+ "egui",
+ "egui_commonmark",
+ "egui_extras",
+ "image",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3669,178 +3842,6 @@ name = "weezl"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
-
-[[package]]
-name = "cog-companion"
-version = "0.8.3"
-dependencies = [
- "console_error_panic_hook",
- "eframe",
- "ehttp",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time",
- "sensor-guide",
-]
-
-[[package]]
-name = "cog-host"
-version = "0.8.3"
-dependencies = [
- "base64 0.22.1",
- "blake3",
- "ed25519-dalek",
- "libc",
- "serde",
- "serde_json",
- "tempfile",
- "cog-market",
- "cog-protocol",
- "cog-repo",
-]
-
-[[package]]
-name = "cog-manager"
-version = "0.8.3"
-dependencies = [
- "base64 0.22.1",
- "console_error_panic_hook",
- "ed25519-dalek",
- "eframe",
- "ehttp",
- "serde",
- "serde_json",
- "uuid",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time",
- "cog-market",
- "cog-repo",
- "sensor-guide",
-]
-
-[[package]]
-name = "cog-market"
-version = "0.8.3"
-dependencies = [
- "serde",
- "serde_json",
- "cog-market",
- "cog-repo",
-]
-
-[[package]]
-name = "cog-protocol"
-version = "0.8.3"
-dependencies = [
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "cog-repo"
-version = "0.8.3"
-dependencies = [
- "ed25519-dalek",
- "hex",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "toml",
-]
-
-[[package]]
-name = "cog-sources"
-version = "0.8.3"
-dependencies = [
- "chrono",
- "ed25519-dalek",
- "hex",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.21",
- "toml",
- "cog-host",
- "cog-market",
- "cog-repo",
-]
-
-[[package]]
-name = "cog-ecg-scope"
-version = "0.8.3"
-dependencies = [
- "eframe",
- "egui_plot",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-time",
- "cog-companion",
-]
-
-[[package]]
-name = "guide-view"
-version = "0.8.3"
-dependencies = [
- "console_error_panic_hook",
- "eframe",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "sensor-guide",
-]
-
-[[package]]
-name = "sensor-guide"
-version = "0.8.3"
-dependencies = [
- "base64 0.22.1",
- "egui",
- "egui_commonmark",
- "egui_extras",
- "image",
- "serde",
- "serde_json",
- "toml",
-]
-
-[[package]]
-name = "cog-sound-scope"
-version = "0.8.3"
-dependencies = [
- "eframe",
- "egui_plot",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-time",
- "cog-companion",
-]
-
-[[package]]
-name = "cog-tof-scope"
-version = "0.8.3"
-dependencies = [
- "eframe",
- "egui_plot",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-time",
- "cog-companion",
-]
 
 [[package]]
 name = "wgpu"

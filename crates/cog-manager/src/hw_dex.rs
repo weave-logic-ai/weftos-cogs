@@ -88,6 +88,17 @@ fn bar(ui: &mut egui::Ui, label: &str, caught: usize, total: usize) {
 
 impl DexUi {
     pub fn show(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, client: &Client, cat: &HwCatalog) {
+        // Bundled catalog identity. Shown even when the host dex has not loaded:
+        // the digest is the canonical file, not the scan.
+        ui.label(
+            RichText::new(format!(
+                "catalog {} {}",
+                cat.generated,
+                HwCatalog::bundled_sha256()
+            ))
+            .color(GREY)
+            .small(),
+        );
         // (Re)fetch whenever the tab was not on screen last frame; plus the Refresh button.
         let f = ctx.cumulative_frame_nr();
         if f > self.last_frame + 1 {
