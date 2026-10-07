@@ -3,6 +3,7 @@
 
 import bridge from "../../../crates/cog-market/catalog/guides/bridge.json";
 import hlkAs201 from "../../../crates/cog-market/catalog/guides/hlk-as201.json";
+import ld1040c from "../../../crates/cog-market/catalog/guides/ld1040c-motion.json";
 import ld2450 from "../../../crates/cog-market/catalog/guides/ld2450-radar.json";
 import mentraLive from "../../../crates/cog-market/catalog/guides/mentra-live.json";
 import rd03e from "../../../crates/cog-market/catalog/guides/rd-03e.json";
@@ -13,6 +14,7 @@ import soundDetect from "../../../crates/cog-market/catalog/guides/sound-detect.
 export const GUIDES: Record<string, unknown> = {
   bridge: bridge as unknown,
   "hlk-as201": hlkAs201 as unknown,
+  "ld1040c-motion": ld1040c as unknown,
   "ld2450-radar": ld2450 as unknown,
   "mentra-live": mentraLive as unknown,
   "rd-03e": rd03e as unknown,

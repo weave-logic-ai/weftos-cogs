@@ -29,6 +29,21 @@ fail() { echo; echo "REPO GATE FAILED: $1"; exit 1; }
 step "decision ids"
 python3 scripts/check_decision_ids.py || fail "decision ids"
 
+step "guide bundles"
+if grep -q "weftos-cog-market" scripts/bundle-cog-guides.py; then
+  fail "guide bundler still names weftos-cog-market"
+fi
+fresh="$(mktemp -d)"
+# No --with-images. The header photo has no recorded source or licence.
+python3 scripts/bundle-cog-guides.py src/cogs "$fresh" || fail "bundle guides"
+diff -rq "$fresh" crates/cog-market/catalog/guides || fail "guide bundles drifted"
+for f in crates/cog-market/catalog/guides/*.json; do
+  id="$(basename "$f" .json)"
+  grep -F -q "catalog/guides/${id}.json" apps/sensor-explorer/src/guides.ts || fail "explorer guide missing ${id}"
+  grep -F -q "catalog/guides/${id}.json" crates/cog-market/src/guides.rs || fail "GUIDES missing ${id}"
+done
+rm -rf "$fresh"
+
 step "cargo metadata has no clawft crate"
 meta="$(mktemp)"
 cargo metadata --locked --format-version 1 >"$meta" || fail "cargo metadata"

@@ -10,6 +10,7 @@
 pub const GUIDES: &[(&str, &str)] = &[
     ("bridge", include_str!("../catalog/guides/bridge.json")),
     ("hlk-as201", include_str!("../catalog/guides/hlk-as201.json")),
+    ("ld1040c-motion", include_str!("../catalog/guides/ld1040c-motion.json")),
     ("ld2450-radar", include_str!("../catalog/guides/ld2450-radar.json")),
     ("mentra-live", include_str!("../catalog/guides/mentra-live.json")),
     ("rd-03e", include_str!("../catalog/guides/rd-03e.json")),
@@ -58,6 +59,7 @@ mod tests {
                 }
             }
         }
+        assert!(bundled("ld1040c-motion").is_some());
         assert!(bundled("ld2450-radar").is_some());
         assert!(bundled("nope").is_none());
     }
