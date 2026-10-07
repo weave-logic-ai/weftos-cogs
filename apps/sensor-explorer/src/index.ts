@@ -778,7 +778,7 @@ table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft);color:var(-
 <header>
   <div class=brand>
     <h1><span class=mark aria-hidden=true></span>${name}</h1>
-    <p class=sub>A browsable, contributable hardware catalog with an MCP agent surface. <a href="/api/facets">facets</a> &middot; <a href="/api/catalog.json">catalog.json</a> &middot; <a href="/api/catalog/release">catalog release</a> &middot; <code>POST /mcp</code></p>
+    <p class=sub>A browsable, contributable hardware catalog with an MCP agent surface. <a href="/api/facets">facets</a> &middot; <a href="/api/catalog.json">catalog export</a> &middot; <a href="/catalog.json">canonical catalog</a> &middot; <a href="/catalog-release.json">catalog artifact</a> &middot; <a href="/api/catalog/release">catalog release</a> &middot; <code>POST /mcp</code></p>
     <p class=sub id=catalogrel></p>
   </div>
   <a class=seedbanner href="https://cognitum.one/a/9PUnUY" target=_blank rel=noopener>
@@ -1712,6 +1712,9 @@ fetch('/api/cogs').then(function(r){return r.json();}).then(function(d){
 }).catch(function(){});
 fetch('/api/pulse').then(function(r){return r.json();}).then(renderPulse).catch(function(){});
 fetch('/api/catalog/release').then(function(r){return r.json();}).then(function(d){
+  if(d&&d.digest)return d;
+  return fetch('/catalog-release.json').then(function(r){return r.json();});
+}).then(function(d){
   if(!d||!d.digest)return;
   window.__catalogRel=d;
   var el=document.getElementById('catalogrel');

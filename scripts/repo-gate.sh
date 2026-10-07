@@ -79,6 +79,9 @@ step "sensor explorer typecheck, lint, tests, worker dry-run, local D1"
   npm run typecheck || exit 1
   npm run lint || exit 1
   npm run test || exit 1
+  node scripts/publish-catalog-artifact.mjs || exit 1
+  cmp -s public/catalog.json ../../crates/cog-market/catalog/catalog.json || exit 1
+  node -e 'const fs=require("fs"); const {createHash}=require("crypto"); const b=fs.readFileSync("public/catalog.json"); const r=JSON.parse(fs.readFileSync("public/catalog-release.json","utf8")); const d=createHash("sha256").update(b).digest("hex"); if (r.digest !== d || r.version !== r.generated || r.source_path !== "crates/cog-market/catalog/catalog.json") process.exit(1)' || exit 1
   npx --no-install wrangler deploy --dry-run --outdir .wrangler/gate-worker --minify || exit 1
   npx --no-install wrangler d1 migrations apply sensor-explorer --local --persist-to .wrangler/gate-d1 || exit 1
   second="$(npx --no-install wrangler d1 migrations apply sensor-explorer --local --persist-to .wrangler/gate-d1)" || exit 1
@@ -93,6 +96,7 @@ node apps/sensor-explorer/scripts/gen-seed.mjs crates/cog-market/catalog/catalog
 grep -q "INSERT OR REPLACE INTO catalog_release" "$seed" || fail "catalog release row missing"
 digest="$(node -e 'const {createHash}=require("crypto"); const fs=require("fs"); process.stdout.write(createHash("sha256").update(fs.readFileSync("crates/cog-market/catalog/catalog.json")).digest("hex"))')"
 grep -q "$digest" "$seed" || fail "seed digest mismatch"
+grep -q "$digest" apps/sensor-explorer/public/catalog-release.json || fail "artifact digest mismatch"
 export CATALOG_SHA256="$digest"
 # The workspace tests ran before this digest existed in the environment.
 # Re-run the one comparison so the Rust embed and the node file hash are the same bytes.

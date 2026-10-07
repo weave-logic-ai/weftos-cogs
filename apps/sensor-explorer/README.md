@@ -3,7 +3,10 @@
 A browsable, contributable hardware catalog (sensors → modules → chips) with an **MCP agent
 surface**, on **Cloudflare Workers + D1**. Seeded from
 `crates/cog-market/catalog/catalog.json`. That file is the canonical catalog. This app does
-not keep a second copy.
+not keep a second committed copy. `scripts/publish-catalog-artifact.mjs` writes a generated
+byte copy to `public/catalog.json` and the version plus SHA-256 to `public/catalog-release.json`.
+Those two files are gitignored. `/api/catalog.json` is still the D1 export, and its bytes are
+not the canonical file.
 
 This is **phase 1, MCP-first**: the agent API (search / get / tree / suggest / add) + public read
 REST + a minimal landing page. The rich tree-browse UI and the human contribution/approval flow are
@@ -15,6 +18,7 @@ next.
 - `src/mcp.ts` — MCP JSON-RPC tools: `catalog_release`, `search_sensors`, `get_part`, `list_tree`, `suggest_for_task`, `add_part`.
 - `migrations/0001_init.sql` — D1 schema (`parts`, `api_keys`, `contributions`).
 - `scripts/gen-seed.mjs` — turns `crates/cog-market/catalog/catalog.json` into `seed.sql` and records its version and SHA-256 in `catalog_release`.
+- `scripts/publish-catalog-artifact.mjs` — copies that file to `public/catalog.json` and writes `public/catalog-release.json`. `npm run seed:gen` runs both.
 
 ## Deploy (you run these — I can't auth to your Cloudflare account)
 
@@ -59,9 +63,9 @@ Issue scoped keys by inserting into `api_keys` (`key`, `owner`, `scope` = read\|
 
 ## Read API (public)
 
-`/api/tree` · `/api/search?q=&type=&limit=` · `/api/parts/:id` · `/api/catalog.json` (full export,
-for the console/appliance to embed) · `/api/catalog/release` (version and SHA-256 of the
-canonical file) · `/healthz`.
+`/api/tree` · `/api/search?q=&type=&limit=` · `/api/parts/:id` · `/api/catalog.json` (D1 export)
+· `/catalog.json` (raw canonical bytes) · `/catalog-release.json` (version and SHA-256 of those
+bytes) · `/api/catalog/release` (the same identity from the seed row) · `/healthz`.
 
 ## Refresh the catalog
 

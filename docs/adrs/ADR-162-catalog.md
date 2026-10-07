@@ -15,13 +15,13 @@ This cog is not a sensor. It has none of the usual sensor-cog parts: no bus, no 
 1. **`catalog` is a read-only HTTP server.** It serves three routes, all with `Access-Control-Allow-Origin: *` (`route()` and `handle()` in `src/cogs/catalog/src/main.rs`):
    - `GET /` and `GET /index.html`: the viewer page (`text/html`).
    - `GET /catalog.json`: the catalog (`application/json`).
-   - `GET /healthz`: `{"ok":true}`.
+   - `GET /healthz`: `{"ok":true,"version":"<generated>","digest":"<sha256 of the raw catalog file>"}`.
    - Anything else is `404` with `{"error":"not found"}`. A query string is stripped before routing. The cog does not check the request method; any request line is routed by its path.
 2. **Port and bind.** The default is `0.0.0.0:8060` (`[api] bind_port = 8060`, `bind_loopback_only = false` in `src/cogs/catalog/cog.toml`). `--api-bind <host:port>` sets the full address; `--port <n>` sets `0.0.0.0:<n>`; `--api-bind` wins if both are given. The listener is plain `std::net::TcpListener`, plain HTTP, no TLS.
-3. **The catalog is an embedded snapshot.** `src/cogs/catalog/catalog.json` is pulled in with `include_str!` at build time, so the cog reads no file and makes no network call at run time. The viewer is a self-contained HTML page held in `main.rs`; its `__DATA__` placeholder is replaced with the same JSON each time `/` is served, so the page works with no second request.
-4. **The snapshot is refreshed by hand, as a commit.** There is no refresh at run time. The history shows the pattern: the snapshot was copied from `weftos-cog-market/catalog` in `9384f13`, then refreshed in `a276acf`, `df10887`, `01f33c5` and `0895221` (255 to 556 items). That directory is now `crates/cog-market/catalog`. Each refresh needs a rebuild and a new cog binary. The file's own `generated` field (`2026-10-02`) and `schema` field (`1`) tell a reader which snapshot a running cog holds.
-5. **Catalog shape.** The JSON is an object with `schema`, `generated`, `note`, `projects` (3), `modules` (245) and `chips` (308), 556 items in all. A unit test (`embedded_catalog_is_valid_json_with_sections`) checks that it parses and that the three sections are arrays. The `note` field says specs tagged `source` are vendor or datasheet values, not our bench data, and that `buy` entries come from a distributor pull.
-6. **No sensor, no store writes.** The cog opens no device, calls no Seed API and writes nothing to the store. Its only dependencies are `cog-sensor-sources` (used for `handle_help` only) and `serde_json` (used in the test) (`src/cogs/catalog/Cargo.toml`).
+3. **The catalog is the canonical file, embedded.** `include_str!` pulls in `crates/cog-market/catalog/catalog.json` at build time. There is no `src/cogs/catalog/catalog.json`. The cog reads no file and makes no network call at run time. The viewer is a self-contained HTML page held in `main.rs`. It replaces `__DIGEST__` with the SHA-256 of those bytes, then `__DATA__` with the same JSON, so `/` works with no second request. `GET /catalog.json` returns those bytes unchanged.
+4. **The canonical file is the source.** There is no second snapshot inside this cog. Earlier commits copied `weftos-cog-market/catalog` into the cog (`9384f13`, then `a276acf`, `df10887`, `01f33c5`, `0895221`). That directory is now `crates/cog-market/catalog`, and the cog embeds it. A change to the file needs a rebuild and a new cog binary. The file's `generated` field is the version. `GET /healthz` returns `ok`, that version, and the SHA-256 of the raw file.
+5. **Catalog shape.** The JSON is an object with `schema`, `generated`, `note`, `projects`, `modules`, and `chips`. A unit test (`embedded_catalog_is_valid_json_with_sections`) checks that it parses and that the three sections are arrays. The `note` field says specs tagged `source` are vendor or datasheet values, not our bench data, and that `buy` entries come from a distributor pull.
+6. **No sensor, no store writes.** The cog opens no device, calls no Seed API and writes nothing to the store. Its dependencies are `cog-sensor-sources` (used for `handle_help` only), `serde_json`, and `sha2` (`src/cogs/catalog/Cargo.toml`).
 7. **Flags.** `--help` is handled by `cog_sensor_sources::handle_help`, using the embedded `cog.toml`. `--interval` and `--once` are accepted by the host harness convention but ignored: the cog serves until killed. On a bind failure it prints `[cog-catalog] fatal: ...` to stderr and exits 1. After a successful bind the main thread parks forever and a single thread accepts connections.
 8. **Manifest.** `id = "catalog"`, `name = "Hardware Catalog"`, binary `cog-catalog-arm`, `hardware_requirement = ["v0-appliance"]` (`cog.toml`). The release profile is size-optimized (`opt-level = "s"`, LTO, `panic = "abort"`, stripped).
 9. **Console limits (decided, being added to `cog.toml` by a separate change).** `allowed_commands` stays `["--help"]`. `max_runtime_secs = 15` and `output_limit_bytes = 65536` are added, the same values the `bridge`, `hlk-as201` and `ld2450-radar` manifests carry. `--help` is the only command the console can run, so 15 s and 64 KiB are ample.
@@ -35,7 +35,7 @@ This cog is not a sensor. It has none of the usual sensor-cog parts: no bus, no 
 - The server is minimal. `handle()` reads one buffer of 2048 bytes in a single `read()`, sets no read timeout and handles connections one at a time on one thread, so a client that connects and sends nothing blocks every other request. Only request paths are used, so a request line cut off in that first read can be misrouted. Nothing here is a vulnerability for a read-only public catalog, but it is not hardened the way `bridge` is (ADR-160 Amendments 2 and 3).
 - The export is reachable on the LAN and tailnet, by default, from any origin (CORS `*`). The content is a public parts list; it carries no user data. Set `api_bind` to `127.0.0.1:8060` to keep it on the Seed.
 - Installed by sideload like the other cogs unless it is added to a registry. The catalog cog is not a sensor, so it has no ADR-104 sensor guide in this tree.
-- `/healthz` reports only that the server is up, not which snapshot it holds. A reader has to fetch `/catalog.json` and look at `generated`.
+- `/healthz` reports `ok`, the catalog `generated` value, and the SHA-256 of the embedded file. `GET /catalog.json` is that file.
 
 ## Spatial evidence: not applicable
 
@@ -50,8 +50,8 @@ This cog has no `spatial.evidence.v1` adapter (WeftOS-spatial ADR-107), although
 ## Open questions
 
 - Is `0.0.0.0` the right default bind? The decision above records what the code does, not that anyone chose it over loopback for a reason.
-- Who owns the refresh, and on what trigger? The commits show it done by hand after the upstream `weftos-cog-market/catalog` changed. That tree is now `crates/cog-market/catalog`. There is no script in this tree that does it.
+- Who edits the canonical catalog, and on what review trigger? The cog embeds `crates/cog-market/catalog/catalog.json`. Sensor Explorer generates its D1 seed and its `/catalog.json` asset from that same file.
 - Should the cog carry an ADR-104 guide, or is that only for sensor cogs? None is shipped.
-- Should `/healthz` or a `/status` route report the snapshot's `generated` date and item counts?
+- `/healthz` reports the `generated` date and the file digest. It does not report item counts. The viewer stat line does.
 - Should the server get a read timeout and a method check (`GET` and `HEAD` only) before it is exposed beyond a trusted network?
 - Is the `category` mapping to `developer` final? It is a decision made outside this ADR; this ADR only records it.
