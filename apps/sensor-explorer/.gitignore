@@ -14,6 +14,7 @@ wl-repo/
 # Generated guide-view bundle (wasm-bindgen). Rebuild locally; do not commit.
 public/guide-view/*.js
 public/guide-view/*.wasm
+public/guide-view/*.d.ts
 
 # Generated from crates/cog-market/catalog/catalog.json. Not a second source.
 public/catalog.json

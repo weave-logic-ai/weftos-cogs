@@ -11,9 +11,16 @@
 
 /** The seeded identity of `crates/cog-market/catalog/catalog.json`. Empty until the seed runs. */
 export async function catalogRelease(db: D1Database) {
-  return db.prepare(
-    "SELECT version, digest, generated, source_path, schema FROM catalog_release WHERE id=1"
-  ).first<{ version: string; digest: string; generated: string; source_path: string; schema: number }>();
+  try {
+    return await db.prepare(
+      "SELECT version, digest, generated, source_path, schema FROM catalog_release WHERE id=1"
+    ).first<{ version: string; digest: string; generated: string; source_path: string; schema: number }>();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // A preview can bind the live database before migration 0007 exists.
+    if (message.includes("no such table")) return null;
+    throw err;
+  }
 }
 
 export interface Env {

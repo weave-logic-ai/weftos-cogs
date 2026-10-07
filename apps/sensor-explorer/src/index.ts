@@ -1711,7 +1711,7 @@ fetch('/api/cogs').then(function(r){return r.json();}).then(function(d){
   document.getElementById('ct-cogs').textContent=nfmt(COGS.all.length);
 }).catch(function(){});
 fetch('/api/pulse').then(function(r){return r.json();}).then(renderPulse).catch(function(){});
-fetch('/api/catalog/release').then(function(r){return r.json();}).then(function(d){
+fetch('/api/catalog/release').then(function(r){return r.ok?r.json():null;}).then(function(d){
   if(d&&d.digest)return d;
   return fetch('/catalog-release.json').then(function(r){return r.json();});
 }).then(function(d){
