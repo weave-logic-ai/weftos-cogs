@@ -41,6 +41,9 @@ docker run --rm ${plat_args[@]+"${plat_args[@]}"} \
   -e CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
   -e CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
   "$IMAGE" bash -euo pipefail -c '
+    # rust-toolchain.toml selects 1.95. The image preinstalls these targets
+    # only on its own toolchain, so install them for the active one.
+    rustup target add armv7-unknown-linux-gnueabihf aarch64-unknown-linux-gnu
     for cog in "$@"; do
       cd "/work/src/cogs/$cog"
       echo "== $cog armv7-unknown-linux-gnueabihf"
