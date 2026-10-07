@@ -1,5 +1,7 @@
 # Cog ingest bridge
 
+Phase A ownership, 2026-10-07. The cog-facing request contract below is the product portion. Kernel ingest, placement auth, and mesh forward stay in WeftOS `docs/cogs/ingest-bridge.md` because ADR-100 cites that path.
+
 The ingest bridge is WeftOS code. It is not in this repository. Card: mesh-placement-10.
 Decision: ADR-100, "Decision 5 resolved (2026-10-02)".
 

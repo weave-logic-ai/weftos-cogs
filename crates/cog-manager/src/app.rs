@@ -130,7 +130,13 @@ impl Manager {
             guide_port_draft: String::new(),
             guide_source: "",
             catalog: HwCatalog::bundled(),
-            cat_tab: 1,
+            // `?cattab=dex` opens the Hardware Dex, which shows the bundled catalog digest.
+            cat_tab: match client::setting("WEFTOS_CATTAB", "cattab", "").as_str() {
+                "projects" => 0,
+                "chips" => 2,
+                "dex" => 3,
+                _ => 1,
+            },
             cat_search: deep.clone().unwrap_or_default(),
             cat_kind: "all".into(),
             hw: hw_identify::HwIdentify::default(),

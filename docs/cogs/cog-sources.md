@@ -1,5 +1,7 @@
 # How a project gets cogs: sources, licences and private repos
 
+Phase A ownership, 2026-10-07. This page is the product portion: project sources, private repos, and the catalog. Signer-anchor provisioning stays in WeftOS `docs/cogs/cog-sources.md`, which ADR-105 cites.
+
 Design record: [COG-105](../decisions/COG-105-cog-sources.md). The OS and runtime portions remain WeftOS ADR-105 (they are not in this repository). Commands: the `weaver cog` group, `weaver workload catalog --kind cog`, and `weft-cog-repo` for authoring. This page is the how-to. What is built and what is only designed is listed at the end.
 
 A WeftOS project gets cogs from a **list of sources**. Three kinds exist:

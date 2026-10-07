@@ -1,5 +1,7 @@
 # weft-licence: the Seed licence proxy
 
+Phase A ownership, 2026-10-07. Cog Host licence enforcement is the product portion on this page. Mesh trust, the steward, and the grant protocol stay in WeftOS `docs/cogs/weft-licence.md` with ADR-106.
+
 Code: `crates/weft-licence` (service and CLI), `crates/weft-licence-wire` (the grant
 wire format, shared with the kernel). Decision: ADR-106, section 2 and Phase 2.
 

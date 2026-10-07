@@ -1,5 +1,7 @@
 # Operating cogs: pack, sign, pair, place, revoke
 
+Phase A ownership, 2026-10-07. Appliance pack, sign, and install are the product procedure on this page. Pair, place, revoke, and swarm redistribution stay in WeftOS `docs/cogs/operator-guide.md` with ADR-099.
+
 For the person who takes a cog from a source to a running, governed workload on a real node. Design: [ADR-099](../adr/adr-099-governed-workload-placement.md) (placement, trust) and [ADR-100](../adr/adr-100-cog-workload-kind.md) (the cog kind). Where cogs come from: [cog-sources.md](cog-sources.md). Hardware lane: [test-pi.md](test-pi.md).
 
 Two paths exist and they are different:
