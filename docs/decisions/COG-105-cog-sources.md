@@ -4,10 +4,11 @@
 - **Decision date:** 2026-10-02 (Owner / platform, WeftOS ADR-105)
 - **Recorded here:** 2026-10-06, as the public product successor. This file does not renumber or amend the WeftOS record.
 - **Predecessor:** WeftOS ADR-105, *Cog sources, a multi-repository cog catalog for projects*
+- **Provenance:** Imported from [weave-logic-ai/weftos](https://github.com/weave-logic-ai/weftos) tag [v0.8.3](https://github.com/weave-logic-ai/weftos/tree/v0.8.3) (`fafd6168f8f97280ee24e5c2d2813b6e34918e15`) on 2026-10-06, import commit `056029567eb8c0eea6e37f7b6958a370b3ff2385`. At that commit the paths were `crates/weftos-cog-sources` and `crates/weftos-cog-repo`. Canonical owner of the product portion: this repository. OS and runtime remain WeftOS ADR-105. See [PROVENANCE.md](PROVENANCE.md).
 - **OS and runtime:** remain WeftOS ADR-105. Named below. They are not decided again here.
 - **Audience:** someone configuring where a project installs cogs from, or reading the catalog
 - **Question:** how does one project install cogs from WeftOS, from Cognitum, and from a registry of its own, and what is checked before a binary is trusted?
-- **Rests on:** WeftOS ADR-105 sections 1–5 and 7 (product); `crates/weftos-cog-sources` (`config.rs`, `lib.rs`) and `crates/weftos-cog-repo/src/main.rs` (read at `056029567eb8`)
+- **Rests on:** WeftOS ADR-105 sections 1–5 and 7 (product); `crates/cog-sources` (`config.rs`, `lib.rs`) and `crates/cog-repo/src/main.rs`
 - **How-to:** [docs/cogs/cog-sources.md](../cogs/cog-sources.md)
 
 ## Context
@@ -36,7 +37,7 @@ The project file is `<project root>/.weftos/cog-sources.toml`. The user default 
 
 The file holds public keys, URLs, and licence declarations. It does not hold a secret, so it can be committed with the project. It is not inside `project.toml`: that file is the project's identity, and other writers already rewrite it.
 
-This checkout publishes `COGNITUM_DEFAULT_URL` for a Cognitum source (`crates/weftos-cog-sources/src/config.rs`). It does not publish a matching constant for a WeftOS registry URL. The operator adds the `weftos` source explicitly.
+This checkout publishes `COGNITUM_DEFAULT_URL` for a Cognitum source (`crates/cog-sources/src/config.rs`). It does not publish a matching constant for a WeftOS registry URL. The operator adds the `weftos` source explicitly.
 
 ### What each kind trusts
 

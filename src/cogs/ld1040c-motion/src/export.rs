@@ -196,7 +196,10 @@ mod tests {
     fn ring_keeps_thirty_seconds() {
         let mut st = State::new("sim".into(), 0);
         for i in 0..400u64 {
-            st.push(Sample { t_ms: 1_000 + i * 100, high: i % 2 == 0 });
+            st.push(Sample {
+                t_ms: 1_000 + i * 100,
+                high: i % 2 == 0,
+            });
         }
         // 30 s at 100 ms spacing = 301 samples retained.
         assert_eq!(st.ring.len(), 301);
@@ -208,7 +211,10 @@ mod tests {
         let tail: Vec<Sample> = seq
             .iter()
             .enumerate()
-            .map(|(i, &h)| Sample { t_ms: i as u64, high: h })
+            .map(|(i, &h)| Sample {
+                t_ms: i as u64,
+                high: h,
+            })
             .collect();
         let (edges, frac) = edges_and_fraction(&tail);
         assert_eq!(edges, 2); // false->true at index 1 and index 4

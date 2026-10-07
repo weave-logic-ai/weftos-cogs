@@ -57,21 +57,22 @@ Start it with the scene empty, so it learns a clean background. → see **Mounti
 
 ## 5. Run weft-tof-scope
 
-The app lives in the WeftOS repo (`crates/weftos-tof-scope`).
+The app is `crates/cog-tof-scope` in this repository. The binary name is `weft-tof-scope`.
 
 **Native:**
 
 ```bash
-scripts/build.sh scope tof
+cargo build --locked --release -p cog-tof-scope --bin weft-tof-scope
 SEED_HOST=169.254.42.1 target/release/weft-tof-scope
 ```
 
-**Browser (WASM):**
+**Browser:**
 
 ```bash
-scripts/build.sh scope-web tof
-python3 -m http.server 8092 -d crates/weftos-tof-scope/www
+python3 -m http.server 8092 -d crates/cog-tof-scope/www
 ```
+
+`scripts/repo-gate.sh` builds the wasm library (`wasm32-unknown-unknown`, profile `release-wasm`) in a container. The page imports `www/pkg` once that package exists.
 
 Then open `http://127.0.0.1:8092/?seed=169.254.42.1`.
 

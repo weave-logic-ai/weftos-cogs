@@ -3671,7 +3671,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
-name = "weftos-cog-companion"
+name = "cog-companion"
 version = "0.8.3"
 dependencies = [
  "console_error_panic_hook",
@@ -3683,11 +3683,11 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
- "weftos-sensor-guide",
+ "sensor-guide",
 ]
 
 [[package]]
-name = "weftos-cog-host"
+name = "cog-host"
 version = "0.8.3"
 dependencies = [
  "base64 0.22.1",
@@ -3697,13 +3697,13 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "weftos-cog-market",
- "weftos-cog-protocol",
- "weftos-cog-repo",
+ "cog-market",
+ "cog-protocol",
+ "cog-repo",
 ]
 
 [[package]]
-name = "weftos-cog-manager"
+name = "cog-manager"
 version = "0.8.3"
 dependencies = [
  "base64 0.22.1",
@@ -3718,23 +3718,23 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
- "weftos-cog-market",
- "weftos-cog-repo",
- "weftos-sensor-guide",
+ "cog-market",
+ "cog-repo",
+ "sensor-guide",
 ]
 
 [[package]]
-name = "weftos-cog-market"
+name = "cog-market"
 version = "0.8.3"
 dependencies = [
  "serde",
  "serde_json",
- "weftos-cog-market",
- "weftos-cog-repo",
+ "cog-market",
+ "cog-repo",
 ]
 
 [[package]]
-name = "weftos-cog-protocol"
+name = "cog-protocol"
 version = "0.8.3"
 dependencies = [
  "serde",
@@ -3744,7 +3744,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "weftos-cog-repo"
+name = "cog-repo"
 version = "0.8.3"
 dependencies = [
  "ed25519-dalek",
@@ -3758,7 +3758,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "weftos-cog-sources"
+name = "cog-sources"
 version = "0.8.3"
 dependencies = [
  "chrono",
@@ -3771,13 +3771,13 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "toml",
- "weftos-cog-host",
- "weftos-cog-market",
- "weftos-cog-repo",
+ "cog-host",
+ "cog-market",
+ "cog-repo",
 ]
 
 [[package]]
-name = "weftos-ecg-scope"
+name = "cog-ecg-scope"
 version = "0.8.3"
 dependencies = [
  "eframe",
@@ -3786,11 +3786,11 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",
- "weftos-cog-companion",
+ "cog-companion",
 ]
 
 [[package]]
-name = "weftos-guide-view"
+name = "guide-view"
 version = "0.8.3"
 dependencies = [
  "console_error_panic_hook",
@@ -3799,11 +3799,11 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "weftos-sensor-guide",
+ "sensor-guide",
 ]
 
 [[package]]
-name = "weftos-sensor-guide"
+name = "sensor-guide"
 version = "0.8.3"
 dependencies = [
  "base64 0.22.1",
@@ -3817,7 +3817,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "weftos-sound-scope"
+name = "cog-sound-scope"
 version = "0.8.3"
 dependencies = [
  "eframe",
@@ -3826,11 +3826,11 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",
- "weftos-cog-companion",
+ "cog-companion",
 ]
 
 [[package]]
-name = "weftos-tof-scope"
+name = "cog-tof-scope"
 version = "0.8.3"
 dependencies = [
  "eframe",
@@ -3839,7 +3839,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-time",
- "weftos-cog-companion",
+ "cog-companion",
 ]
 
 [[package]]

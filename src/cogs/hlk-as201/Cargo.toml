@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "cog-hlk-as201"
 version = "0.1.0"

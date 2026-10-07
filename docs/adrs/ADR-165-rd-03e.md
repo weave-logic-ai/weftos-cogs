@@ -236,7 +236,7 @@ RD-03E has been read by this cog on a Seed or laptop in the repo's record.
   `src/export.rs` (the 30 s evidence ring and JSONL route).
 - There is no `tests/` directory: no CLI end-to-end tests exist for this cog, unlike
   `ld2450-radar`.
-- `guide-check` (WeftOS `weftos-sensor-guide`) validates `guide/`.
+- `guide-check` (`sensor-guide` in this repository) validates `guide/`.
 - No captured radar bytes are committed.
 
 ## Consequences

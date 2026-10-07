@@ -215,7 +215,7 @@
       ],
       "seen_in": [
         "docs/hardware/sensors.md",
-        "crates/weftos-cog-market/catalog/catalog.json"
+        "crates/cog-market/catalog/catalog.json"
       ]
     },
     {
@@ -2081,7 +2081,7 @@
       "buy": [],
       "seen_in": [
         "docs/hardware/radar-protocols.md",
-        "crates/weftos-cog-market/catalog/catalog.json"
+        "crates/cog-market/catalog/catalog.json"
       ]
     },
     {
@@ -2891,7 +2891,7 @@
         }
       ],
       "seen_in": [
-        "crates/weftos-cog-market/catalog/catalog.json"
+        "crates/cog-market/catalog/catalog.json"
       ]
     },
     {
@@ -4780,7 +4780,7 @@
       ],
       "seen_in": [
         "docs/hardware/radar-protocols.md",
-        "crates/weftos-cog-market/catalog/catalog.json"
+        "crates/cog-market/catalog/catalog.json"
       ]
     },
     {

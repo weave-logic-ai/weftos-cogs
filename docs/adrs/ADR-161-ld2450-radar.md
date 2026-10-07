@@ -251,7 +251,7 @@ LD2450 has been read by this cog on a Seed or a laptop.
   flag parsing and bounds, the file sink, the `/spatial` route, `--once --simulate` writing
   SYNTHETIC JSONL with `spatial: "emitting"`, and `spatial: "no_pose"` with no file written. The default build
   has a CLI test that the spatial flags are refused (exit 2).
-- `guide-check` (WeftOS `weftos-sensor-guide`) validates `guide/`.
+- `guide-check` (`sensor-guide` in this repository) validates `guide/`.
 - No captured radar bytes are committed. Positions of people are person data.
 
 ## Consequences

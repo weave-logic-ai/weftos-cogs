@@ -1,0 +1,34 @@
+[package]
+name = "cog-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "weft-cog-host (COG-009): a WeftOS process supervisor that runs cogs on an appliance with no agent cap, each still ingesting to the Cognitum store. Lifecycle HTTP API for the manager UI (std HTTP, no TLS stack); armv7 and arm64."
+
+[[bin]]
+name = "weft-cog-host"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Install-time verification: Ed25519 (pinned WeaveLogic key) + sha256, reused from the repo lib
+# (no `cli` feature → no reqwest/TLS pulled into the appliance host).
+cog-repo = { path = "../cog-repo", default-features = false }
+base64 = "0.22"
+# USB id table for /hw/usb (pure data, wasm-safe; no new third-party deps).
+cog-market = { path = "../cog-market" }
+# weftos.cog.v1. The daemon remains the licence authority.
+cog-protocol = { path = "../cog-protocol" }
+blake3 = { workspace = true }
+ed25519-dalek = { workspace = true }
+
+# memfd_create / fcntl seals (Linux, supervise.rs) and O_NOFOLLOW guide reads (introspect.rs).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = { workspace = true }

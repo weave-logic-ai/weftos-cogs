@@ -58,16 +58,17 @@ The export starts before the ADC is found, so `/status` reads `no_source` while 
 **Native:**
 
 ```bash
-scripts/build.sh ecg-scope
+cargo build --locked --release -p cog-ecg-scope --bin weft-ecg-scope
 SEED_HOST=169.254.42.1 target/release/weft-ecg-scope
 ```
 
-**Browser (WASM):**
+**Browser:**
 
 ```bash
-scripts/build.sh ecg-scope-web
-python3 -m http.server 8091 -d crates/weftos-ecg-scope/www
+python3 -m http.server 8091 -d crates/cog-ecg-scope/www
 ```
+
+`scripts/repo-gate.sh` builds the wasm library (`wasm32-unknown-unknown`, profile `release-wasm`) in a container. The page imports `www/pkg` once that package exists. The binary name is `weft-ecg-scope`. The crate is `crates/cog-ecg-scope`.
 
 Open `http://127.0.0.1:8091/?seed=169.254.42.1`.
 

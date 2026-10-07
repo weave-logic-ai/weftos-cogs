@@ -12,7 +12,7 @@ It reads depth frames (8×8 or 4×4, 20-3500 mm, 60° field of view) and reports
 
 It exports raw frames too. ADR-159.
 
-The full documentation is the sensor guide in `guide/` (WeftOS ADR-104): start, parts, wiring, mounting, setup, calibrate, troubleshoot, API reference, safety and glossary. The cog serves it at `GET :8047/guide`, and the companion app `weft-tof-scope` (WeftOS `crates/weftos-tof-scope`) shows it in its Guide tab, next to a live zone heatmap and a hook-up checklist.
+The full documentation is the sensor guide in `guide/` (WeftOS ADR-104): start, parts, wiring, mounting, setup, calibrate, troubleshoot, API reference, safety and glossary. The cog serves it at `GET :8047/guide`, and the companion app `weft-tof-scope` (`crates/cog-tof-scope`) shows it in its Guide tab, next to a live zone heatmap and a hook-up checklist.
 
 ## Wiring (3.3 V only)
 

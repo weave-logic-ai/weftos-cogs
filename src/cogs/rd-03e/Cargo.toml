@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "cog-rd-03e"
 version = "0.1.0"

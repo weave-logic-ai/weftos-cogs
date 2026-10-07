@@ -2,6 +2,7 @@
 
 - **Status:** Accepted for the product host contract. Recorded 2026-10-06 from the extraction instruction (owner, relayed in that session). Not an implementation claim.
 - **Predecessor:** WeftOS ADR-106, *The Cognitum Seed is the licence proxy for its WeftOS mesh* (2026-10-03, Proposed, review complete). This file does not renumber or amend that record, and it does not change that record's status.
+- **Provenance:** Product host behaviour recorded here 2026-10-06. `crates/cog-host` was imported from [weave-logic-ai/weftos](https://github.com/weave-logic-ai/weftos) tag [v0.8.3](https://github.com/weave-logic-ai/weftos/tree/v0.8.3) (`fafd6168f8f97280ee24e5c2d2813b6e34918e15`) as `crates/weftos-cog-host` in commit `056029567eb8c0eea6e37f7b6958a370b3ff2385`. `crates/cog-protocol` was added in `f6fd69d14cde919b279071c49b4014af2a685a29`; it was not in that import. The daemon handler stays in WeftOS. Canonical owner of the host contract: this repository. See [PROVENANCE.md](PROVENANCE.md).
 - **OS and runtime:** the daemon, the mesh service, and the kernel gate stay in WeftOS ADR-106. This file is only what Cog Host does with the answer.
 - **Audience:** someone running Cog Host against a Cognitum-origin cog
 - **Question:** who decides whether a checked-out cog may start, and what does the host do when the answer is no?
@@ -40,7 +41,7 @@ Checkout grants, approvals, and revocation, as the host sees them, are those spe
 
 ### Not in this checkout
 
-The client and the Cog Host gate are in this checkout (`crates/weftos-cog-protocol`, `crates/weftos-cog-host`). The daemon handler that answers them stays in WeftOS. This record does not close A1. A search at `056029567eb8` found no `weftos.cog.v1` client; that search described the tree before this import.
+The client and the Cog Host gate are in this checkout (`crates/cog-protocol`, `crates/cog-host`). The daemon handler that answers them stays in WeftOS. This record does not close A1. A search at `056029567eb8` found no `weftos.cog.v1` client; that search described the tree before this import.
 
 ## Consequences
 

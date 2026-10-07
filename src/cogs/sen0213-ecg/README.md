@@ -123,11 +123,11 @@ The signal path is shown below.
 - start, parts, wiring, electrodes, setup;
 - calibrate, troubleshoot, API reference, safety, glossary.
 
-The cog compiles the guide in and serves it at `GET :8046/guide`, so the app always shows the guide for the installed version. Validate it with `guide-check src/cogs/sen0213-ecg/guide` (from WeftOS `crates/weftos-sensor-guide`); the gate runs it as step 11 when `guide-check` is installed.
+The cog compiles the guide in and serves it at `GET :8046/guide`, so the app always shows the guide for the installed version. Validate it with `guide-check src/cogs/sen0213-ecg/guide` (`crates/sensor-guide` in this repository). `scripts/repo-gate.sh` builds `guide-check` and runs it as gate step 11.
 
 ## Hook-up and calibration app
 
-`weft-ecg-scope`, a WeftOS egui app (native and browser), is in the WeftOS repo at `crates/weftos-ecg-scope`. Point it at the Seed (`SEED_HOST=169.254.42.1`, or `?seed=` in the browser) and it provides:
+`weft-ecg-scope`, an egui app (native and browser), is `crates/cog-ecg-scope` in this repository. Point it at the Seed (`SEED_HOST=169.254.42.1`, or `?seed=` in the browser) and it provides:
 - a live hook-up checklist in wiring order;
 - the ECG graph with R-peaks;
 - calibration: baseline, rails, 50/60 Hz hum, R amplitude and polarity, SNR;

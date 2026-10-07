@@ -26,6 +26,7 @@ imager, an ECG front-end, a mic, an IMU) and emits a JSON line per window plus a
 ## Build
 
 ```sh
+scripts/repo-gate.sh                # workspace, explorer, wasm, catalog, cog gate
 scripts/cross-build.sh <cog-id>     # armv7 (Seed/Pi Zero 2 W) + aarch64 (Pi 5)
 scripts/cross-build.sh              # all cogs
 ```
@@ -35,7 +36,7 @@ Artifacts land in `.cargo-target/dist/<id>/cog-<id>-{arm,arm64}` (stripped).
 
 Released cogs are signed (Ed25519, pinned WeaveLogic key) and published at the
 Sensor Explorer, which serves a COG-008 `registry.json` and per-arch downloads.
-Install on a WeftOS host via `weftos-cog-sources`, or on a Cognitum Seed via the
+Install on a WeftOS host via `cog-sources`, or on a Cognitum Seed via the
 `cogrepo` cog — both verify the signature against the pinned key before trusting
 the bytes. See COG-008 / COG-012 for the trust model.
 

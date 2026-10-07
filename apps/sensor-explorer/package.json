@@ -14,6 +14,8 @@
     "db:seed": "wrangler d1 execute sensor-explorer --remote --file=./seed.sql",
     "db:seed:local": "wrangler d1 execute sensor-explorer --local --file=./seed.sql",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit && node scripts/check-syntax.mjs",
+    "test": "node --experimental-strip-types --test test/search.test.ts",
     "db:migrate:pool": "wrangler d1 execute sensor-explorer --remote --file=./migrations/0002_pool.sql",
     "pool:seed:gen": "node scripts/gen-pool-seed.mjs pool.seed.json pool-seed.sql",
     "db:pool": "wrangler d1 execute sensor-explorer --remote --file=./pool-seed.sql",

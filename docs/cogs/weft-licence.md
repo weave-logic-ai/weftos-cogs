@@ -341,7 +341,7 @@ Recorded on 2026-10-02 (release profile, already stripped):
 | `armv7-unknown-linux-gnueabihf` | 2,874,508 bytes |
 | `aarch64-unknown-linux-gnu` | 3,085,056 bytes |
 
-`weftos-cog-sources` builds for `armv7-unknown-linux-gnueabihf` as part of this.
+`cog-sources` builds for `armv7-unknown-linux-gnueabihf` as part of this.
 
 ## Running cogs on the Seed
 

@@ -197,7 +197,7 @@ All of the following is CODE or SYNTHETIC. **Nothing is MEASURED on hardware** (
   a bad-checksum frame; the simulator feeding the real parser, gravity on Z, about
   1013 hPa, and a store vector of length 8 within 0..1.
 - No CLI integration tests (`tests/`) exist for this cog.
-- `guide-check` (WeftOS `weftos-sensor-guide`) validates `guide/`.
+- `guide-check` (`sensor-guide` in this repository) validates `guide/`.
 - Not tested: byte-at-a-time and split-point feeding, a bad length, a report shorter than 43
   bytes, the export routes, and the ingest client.
 

@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "cog-sen0213-ecg"
 version = "0.1.2"

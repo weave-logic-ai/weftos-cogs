@@ -16,3 +16,5 @@ Two series. They are not the same numbering, and neither series is renumbered in
 Hardware and app cog decisions already live in [docs/adrs](../adrs) as ADR-157 through ADR-167. They stay there. They are not COG numbers and they are not reassigned.
 
 ADR-166 is [sound-detect](../adrs/ADR-166-sound-detect.md). ADR-167 is [LD1040C](../adrs/ADR-167-ld1040c-motion.md). [ADR-166-ld1040c-motion.md](../adrs/ADR-166-ld1040c-motion.md) is a redirect to ADR-167, not a second ADR-166. Do not renumber either decision to make room for a COG file. COG-104 through COG-107 do not collide with them: they are a different series, and their numbers follow the WeftOS predecessors they succeed.
+
+Import paths, owners, and the tagged WeftOS predecessors are in [PROVENANCE.md](PROVENANCE.md). The OS contracts this repository implements, without a second copy of those ADRs, are in [platform contracts](../platform-contracts/README.md). `scripts/check_decision_ids.py` rejects a second non-redirect file for the same number.

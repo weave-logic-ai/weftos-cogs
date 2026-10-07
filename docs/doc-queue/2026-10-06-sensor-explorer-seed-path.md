@@ -18,4 +18,8 @@ The catalog file is in this repository at `crates/weftos-cog-market/catalog/cata
 
 ## Not done
 
-No edit outside `docs/`. No new image or seed file was invented. The module and chip counts in that README were not recomputed and were not copied into COG-107.
+No edit outside `docs/` at the time of this observation. No new image or seed file was invented. The module and chip counts in that README were not recomputed and were not copied into COG-107.
+
+## Repaired
+
+2026-10-06. `apps/sensor-explorer/README.md` now copies `../../crates/cog-market/catalog/catalog.json` from that directory. The sentences above stay as observed. At `056029567eb8` the catalog was `crates/weftos-cog-market/catalog/catalog.json`, and the README then said `cp ~/weftos/crates/weftos-cog-market/catalog/catalog.json catalog.seed.json`.

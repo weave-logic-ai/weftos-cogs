@@ -1,4 +1,4 @@
-// ADR-104 guide bundles copied from weftos-cog-market/catalog/guides.
+// ADR-104 guide bundles copied from cog-market/catalog/guides.
 // Each value is the JSON a running cog serves at GET /guide.
 
 import bridge from "../guides/bridge.json";

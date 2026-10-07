@@ -194,7 +194,9 @@ fn build_report(
         if present { 1.0 } else { 0.0 },
         events_per_min / MAX_EVENTS_PER_MIN,
         active_fraction,
-        seconds_since_motion.map(|q| q / QUIET_NORM_S).unwrap_or(1.0),
+        seconds_since_motion
+            .map(|q| q / QUIET_NORM_S)
+            .unwrap_or(1.0),
         amplitude.map(|a| f64::from(a) / AMP_NORM).unwrap_or(0.0),
         signal.map(|s| s / SIGNAL_NORM).unwrap_or(0.0),
         if warming { 1.0 } else { 0.0 },
@@ -289,7 +291,12 @@ fn main() {
         match open_line(&o) {
             Ok(l) => break l,
             Err(e) => {
-                let (r, _) = build_report(&shared.lock().unwrap(), o.interval as f64, o.simulate, &export_url);
+                let (r, _) = build_report(
+                    &shared.lock().unwrap(),
+                    o.interval as f64,
+                    o.simulate,
+                    &export_url,
+                );
                 println!("{r}");
                 eprintln!("{TAG} no source: {e}");
                 if let Ok(mut st) = shared.lock() {

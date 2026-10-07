@@ -63,7 +63,11 @@ for the console/appliance to embed) · `/healthz`.
 
 Re-copy the latest snapshot and reseed:
 
+From this directory:
+
 ```bash
-cp ~/weftos/crates/weftos-cog-market/catalog/catalog.json catalog.seed.json
-npm run seed:gen && npm run db:seed
+cp ../../crates/cog-market/catalog/catalog.json catalog.seed.json
+npm run seed:gen
 ```
+
+`npm run db:seed` applies `seed.sql` to the remote D1 database. `npm run db:seed:local` applies it locally.

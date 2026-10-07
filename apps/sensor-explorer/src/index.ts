@@ -1446,7 +1446,7 @@ function openGuide(id, title){
     return r.text();
   }).then(function(json){
     if(seq!==guideSeq)return null;
-    var ready=guideMod?Promise.resolve(guideMod):import('/guide-view/weftos_guide_view.js').then(function(m){
+    var ready=guideMod?Promise.resolve(guideMod):import('/guide-view/guide_view.js').then(function(m){
       return m.default().then(function(){guideMod=m;return m;});
     });
     return ready.then(function(m){

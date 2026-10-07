@@ -4,9 +4,10 @@
 - **Decision date:** 2026-10-03 (Owner / platform, WeftOS ADR-107)
 - **Recorded here:** 2026-10-06, as the public successor for the catalog, Sensor Explorer, and the manager panels. This file does not renumber or amend the WeftOS record.
 - **Predecessor:** WeftOS ADR-107, *The hardware catalog links modules to cogs*
+- **Provenance:** Imported from [weave-logic-ai/weftos](https://github.com/weave-logic-ai/weftos) tag [v0.8.3](https://github.com/weave-logic-ai/weftos/tree/v0.8.3) (`fafd6168f8f97280ee24e5c2d2813b6e34918e15`) on 2026-10-06, import commit `056029567eb8c0eea6e37f7b6958a370b3ff2385`. At that commit the paths were `crates/weftos-cog-market` and `crates/weftos-cog-manager`. Canonical owner: this repository. See [PROVENANCE.md](PROVENANCE.md).
 - **Audience:** someone browsing hardware, or looking at a module in the manager to see whether a cog exists and what to do next
 - **Question:** how does a catalog entry for a sensor connect to the cog that drives it, without storing "installed" or "running" in the catalog itself?
-- **Rests on:** WeftOS ADR-107; `Module` in `crates/weftos-cog-market/src/hw.rs`; `cog_view` in `crates/weftos-cog-manager/src/sensor_link.rs` and the panel comment in `crates/weftos-cog-manager/src/sensor_detail.rs`; Sensor Explorer in `apps/sensor-explorer/README.md` (read at `056029567eb8`)
+- **Rests on:** WeftOS ADR-107; `Module` in `crates/cog-market/src/hw.rs`; `cog_view` in `crates/cog-manager/src/sensor_link.rs` and the panel comment in `crates/cog-manager/src/sensor_detail.rs`; Sensor Explorer in `apps/sensor-explorer/README.md`
 - **Also:** [COG-104](COG-104-sensor-guides.md) (the guide that ships with the cog), [COG-105](COG-105-cog-sources.md) (where an install comes from)
 
 ## Context

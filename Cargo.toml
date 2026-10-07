@@ -1,19 +1,20 @@
 [workspace]
 resolver = "2"
+exclude = ["src/cogs/*"]
 members = [
     "crates/cog-sensor-sources",
-    "crates/weftos-cog-companion",
-    "crates/weftos-cog-host",
-    "crates/weftos-cog-manager",
-    "crates/weftos-cog-market",
-    "crates/weftos-cog-protocol",
-    "crates/weftos-cog-repo",
-    "crates/weftos-cog-sources",
-    "crates/weftos-ecg-scope",
-    "crates/weftos-guide-view",
-    "crates/weftos-sensor-guide",
-    "crates/weftos-sound-scope",
-    "crates/weftos-tof-scope",
+    "crates/cog-companion",
+    "crates/cog-host",
+    "crates/cog-manager",
+    "crates/cog-market",
+    "crates/cog-protocol",
+    "crates/cog-repo",
+    "crates/cog-sources",
+    "crates/cog-ecg-scope",
+    "crates/guide-view",
+    "crates/sensor-guide",
+    "crates/cog-sound-scope",
+    "crates/cog-tof-scope",
 ]
 
 [workspace.package]

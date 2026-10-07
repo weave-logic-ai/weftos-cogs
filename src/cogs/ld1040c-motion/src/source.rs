@@ -131,7 +131,10 @@ pub fn read_loop(mut line: Box<dyn OutLine>, shared: Shared, sample_ms: u64) {
                     if level && !prev {
                         st.mark_event(t);
                     }
-                    st.push(Sample { t_ms: t, high: level });
+                    st.push(Sample {
+                        t_ms: t,
+                        high: level,
+                    });
                     st.last_level = level;
                     st.samples_total += 1;
                 }
@@ -160,7 +163,7 @@ mod tests {
         assert!(Simulator::level_at(6.5)); // within the 5 s hold
         assert!(Simulator::level_at(10.9));
         assert!(!Simulator::level_at(11.5)); // hold expired, quiet gap
-        // Cycle 1 repeats the pattern.
+                                             // Cycle 1 repeats the pattern.
         assert!(Simulator::level_at(14.0));
     }
 }

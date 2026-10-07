@@ -24,7 +24,12 @@ pub fn bundle_json() -> serde_json::Value {
     use base64::Engine as _;
     let pages: serde_json::Map<String, serde_json::Value> = PAGES
         .iter()
-        .map(|(id, md)| ((*id).to_string(), serde_json::Value::String((*md).to_string())))
+        .map(|(id, md)| {
+            (
+                (*id).to_string(),
+                serde_json::Value::String((*md).to_string()),
+            )
+        })
         .collect();
     let images: serde_json::Map<String, serde_json::Value> = IMAGES
         .iter()
