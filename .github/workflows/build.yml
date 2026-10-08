@@ -27,3 +27,6 @@ jobs:
   # WEAVELOGIC_RELEASE_KEY is NOT placed on this public repo. Release binaries are
   # signed with `weft-cog-repo sign` from a controlled host and published to the
   # Sensor Explorer (R2 + registry.json). This workflow only proves the build.
+  # The uploaded dist/ is a flat copy of the binaries. The signer reads
+  # <dist>/<id>/manifest.json plus cog-<id>-arm, -arm64, or -x86_64.
+  # registry.json records each binary signature. That file itself is not signed.

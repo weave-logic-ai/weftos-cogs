@@ -176,11 +176,23 @@ There are four different keys. Do not mix them up.
 
 | Key | Signs | Held by | Pinned where |
 |---|---|---|---|
-| WeaveLogic cog key | binaries in the WeftOS registry (COG-008) | CI secret `WEAVELOGIC_RELEASE_KEY` in the cogs repo | compiled in: `WEAVELOGIC_PUBKEY_HEX` |
+| WeaveLogic cog key | binaries in the WeftOS registry (COG-008) | a controlled signing host, never a secret on the public cogs repository | compiled in: `WEAVELOGIC_PUBKEY_HEX` |
 | WeftOS release key | WeftOS releases (`weftos-release.json`, checked by `weaver update`) | `WEAVELOGIC_RELEASE_KEY` in the weftos repo's `weftos-cogs` environment | compiled in: `WEFTOS_RELEASE_PUBKEY_HEX` |
 | WeftOS package signer | `cogpkg.json` manifests (governed placement) | a secret store (see below) | compiled in: `WEFTOS_PINNED_SIGNERS` |
 | Your private-repo key | binaries in your private registry | you | each project's `pinned_keys` |
 | Operator package key | `cogpkg.json` manifests you pack | you | the node's `workload-trust.json` |
+
+### WeaveLogic cog key
+
+`.github/workflows/build.yml` cross-builds unsigned ARM binaries and uploads a flat `dist/`. It does not store `WEAVELOGIC_RELEASE_KEY`. A separate controlled host loads the PKCS#8 PEM or the 64-hex seed and runs:
+
+```sh
+weft-cog-repo sign --from <dist> --out <repo> --key <weavelogic-cog-release.pem>
+```
+
+The command refuses a key whose public half is not `WEAVELOGIC_PUBKEY_HEX`. Each accepted binary is copied with its size, SHA-256, and Ed25519 signature. `registry.json` records those fields. The registry file itself is not signed. The input must be `<id>/manifest.json` plus `cog-<id>-arm`, `cog-<id>-arm64`, or `cog-<id>-x86_64`. `scripts/cross-build.sh` writes the binaries under `.cargo-target/dist/<id>/` and does not write `manifest.json`, so that directory is not yet a signable tree. The workflow's uploaded `dist/` is a flat copy of the binaries.
+
+The WeftOS updater key is a different key. Both tools currently read an environment variable named `WEAVELOGIC_RELEASE_KEY`. Do not use one key for the other. If the private key for the compiled public key is lost, generate a new one outside the repository and change `WEAVELOGIC_PUBKEY_HEX` in a reviewed commit before the release consumers will verify. Those consumers have to receive the new public key before, or in the same upgrade as, the new signatures.
 
 ### Provisioning the WeftOS package signer (`WEFTOS_PINNED_SIGNERS`)
 

@@ -15,8 +15,9 @@ mod revoked;
 mod runtime_dir;
 pub use revoked::{RevokedKeys, SUBJECTS_FILE_NAME};
 
-/// The pinned WeaveLogic release public key (raw Ed25519, hex). The matching private key lives
-/// in the dashboard/CI secret `WEAVELOGIC_RELEASE_KEY`, never in this repo.
+/// The pinned WeaveLogic release public key (raw Ed25519, hex). The matching private key is
+/// loaded only on a controlled signing host, never from this public repository's GitHub
+/// environment. `weft-cog-repo sign` reads it from `--key` or from `WEAVELOGIC_RELEASE_KEY`.
 pub const WEAVELOGIC_PUBKEY_HEX: &str =
     "6aae63e067488f1e5414ad4a6b9536bef0407db210fb33a3b378e8d6d12eca15";
 
