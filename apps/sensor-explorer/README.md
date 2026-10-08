@@ -15,7 +15,7 @@ next.
 ## Layout
 
 - `src/index.ts` — Worker: `POST /mcp` (authed), public read REST, landing page.
-- `src/mcp.ts` — MCP JSON-RPC tools: `catalog_release`, `search_sensors`, `get_part`, `list_tree`, `suggest_for_task`, `add_part`.
+- `src/mcp.ts` — MCP JSON-RPC tools. `src/intake.ts` screens every tool's arguments before they are stored. `src/item-schema.ts` is the catalog item schema.
 - `migrations/0001_init.sql` — D1 schema (`parts`, `api_keys`, `contributions`).
 - `scripts/gen-seed.mjs` — turns `crates/cog-market/catalog/catalog.json` into `seed.sql` and records its version and SHA-256 in `catalog_release`.
 - `scripts/publish-catalog-artifact.mjs` — copies that file to `public/catalog.json` and writes `public/catalog-release.json`. `npm run seed:gen` runs both.
@@ -53,11 +53,18 @@ Point a harness at `POST https://<your-worker>/mcp` with header
 
 | Tool | What it does |
 |---|---|
+| `catalog_release` | canonical catalog version, digest, and source path |
 | `search_sensors` | keyword search (type/kind filters) |
 | `get_part` | full record by id (specs, datasheet, buy, notes, chips) |
 | `list_tree` | taxonomy counts (type / module kind / vendor / category) |
 | `suggest_for_task` | rank candidate parts for a described need |
-| `add_part` | propose a part/update (contribute scope) → pending review |
+| `search_pool` | search the imported parts pool |
+| `list_cogs` / `find_cog` | the cog registry |
+| `promote_from_pool` | propose a pool part (contribute scope) → pending review |
+| `add_part` | propose a part (contribute scope) → pending review |
+| `request_new_item` | return the full Project / Module / Chip schema, or submit one item → pending review |
+
+Every `tools/call` argument is screened before it is queried or stored. The filter is deterministic. It refuses prompt injection, sexual content, video links, spam, and oversized input. A refusal names the category and does not repeat the submitted text. A read key can ask `request_new_item` for the schema. Submitting an item needs `contribute` or `admin`. Nothing submitted this way is published until a person approves the contribution.
 
 Issue scoped keys by inserting into `api_keys` (`key`, `owner`, `scope` = read\|contribute\|admin).
 

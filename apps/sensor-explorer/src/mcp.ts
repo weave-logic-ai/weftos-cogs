@@ -2,11 +2,13 @@
 // single-response mode). A harness connects here as an MCP tool server and can search, read, browse
 // the tree, get a suggestion for a task, and (with contribute scope) propose a new part.
 
-import { catalogRelease, type Env, expandedSearch, searchPool, searchCogs } from "./search";
-import { recordEvent, recordLook } from "./activity";
+import { catalogRelease, type Env, expandedSearch, searchPool, searchCogs } from "./search.ts";
+import { recordEvent, recordLook } from "./activity.ts";
+import { intakeRefusal, screenIntake } from "./intake.ts";
+import { CATALOG_ITEM_SCHEMA, itemRecord, wantsSchema } from "./item-schema.ts";
 export type { Env };
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 type Scope = "read" | "contribute" | "admin";
 
@@ -74,8 +76,21 @@ const TOOLS = [
     inputSchema: { type: "object", properties: { mpn: { type: "string" } }, required: ["mpn"] },
   },
   {
+    name: "request_new_item",
+    description: "Return the full catalog item schema, or submit one new Project, Module, or Chip. Pass schema:true (or request:\"schema\") to receive the schema and store nothing. A submission needs type plus item (id and name required) and a contribute or admin key. It is stored as a pending contribution and is not published until a person approves it. The intake filter refuses prompt injection, sexual content, video links, spam, and oversized input, and does not echo the rejected text.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        schema: { type: "boolean", description: "When true, return the schema and do not store an item." },
+        request: { type: "string", enum: ["schema"], description: "Alternate way to ask for the schema only." },
+        type: { type: "string", enum: ["project", "module", "chip"] },
+        item: { type: "object", description: "The record. Must include id and name. Same shape as part." },
+      },
+    },
+  },
+  {
     name: "add_part",
-    description: "Propose a new part (or an update) for the catalog. Requires a contribute-scoped API key. Lands as a pending contribution for review.",
+    description: "Propose a new part (or an update) for the catalog. Requires a contribute-scoped API key. Lands as a pending contribution for review. The same intake filter as request_new_item applies.",
     inputSchema: {
       type: "object",
       properties: {
@@ -96,6 +111,8 @@ function safeJson(s: any): any {
 }
 
 async function callTool(name: string, args: any, env: Env, scope: Scope) {
+  const screened = screenIntake({ name, arguments: args });
+  if (!screened.ok) return intakeRefusal(screened.category);
   const DB = env.DB;
   if (name === "catalog_release") {
     const row = await catalogRelease(DB);
@@ -164,6 +181,22 @@ async function callTool(name: string, args: any, env: Env, scope: Scope) {
       .bind(p.id, args.type, JSON.stringify(p), "mcp", new Date().toISOString()).run();
     return text({ ok: true, status: "pending", id: p.id, note: "Submitted for review." });
   }
+  if (name === "request_new_item") {
+    if (wantsSchema(args) || (args?.item == null && args?.part == null)) {
+      return text({
+        schema: CATALOG_ITEM_SCHEMA,
+        stored: false,
+        note: "Nothing was stored. Send type and item to submit a pending contribution. A person still has to approve it.",
+      });
+    }
+    if (scope !== "contribute" && scope !== "admin") return { ...text("request_new_item needs a contribute-scoped API key to submit. Pass schema:true to read the schema."), isError: true };
+    const parsed = itemRecord(args);
+    if (!parsed) return { ...text("item is required"), isError: true };
+    if ("error" in parsed) return { ...text(parsed.error), isError: true };
+    await DB.prepare("INSERT INTO contributions (part_id,type,data,author,created,status) VALUES (?,?,?,?,?, 'pending')")
+      .bind(parsed.item.id, parsed.type, JSON.stringify({ type: parsed.type, item: parsed.item }), "mcp:request", new Date().toISOString()).run();
+    return text({ ok: true, status: "pending", id: parsed.item.id, type: parsed.type, note: "Submitted for review. It is not in the catalog until a person approves it." });
+  }
   return { ...text(`unknown tool '${name}'`), isError: true };
 }
 
@@ -190,11 +223,17 @@ export async function handleRpc(msg: any, env: Env, scope: Scope): Promise<any |
       case "tools/call": {
         const tool = String(params?.name || "");
         const args = params?.arguments || {};
+        const screened = screenIntake({ name: tool, arguments: args });
+        if (!screened.ok) {
+          await recordEvent(env.DB, "intake", "", "blocked", screened.category);
+          return ok(intakeRefusal(screened.category));
+        }
         const res = await callTool(tool, args, env, scope);
         const ref = String(args.id || args.mpn || args.query || args.need || "").slice(0, 180);
         const failed = "isError" in res && res.isError;
+        const write = tool === "add_part" || tool === "promote_from_pool" || tool === "request_new_item";
         if (tool === "get_part" && ref && !failed) await recordLook(env.DB, ref, "mcp");
-        else if (tool) await recordEvent(env.DB, tool === "add_part" || tool === "promote_from_pool" ? "contribution" : "mcp", ref, tool);
+        else if (tool) await recordEvent(env.DB, write ? "contribution" : "mcp", ref, tool);
         return ok(res);
       }
       default:
