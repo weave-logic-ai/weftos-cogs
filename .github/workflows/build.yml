@@ -14,19 +14,37 @@ jobs:
         run: scripts/cross-build.sh
       - name: Collect artifacts
         run: |
-          mkdir -p dist
-          find .cargo-target/dist -type f -name 'cog-*-arm*' -exec cp {} dist/ \;
-          ls -la dist
+          set -euo pipefail
+          rm -rf dist
+          fail=0
+          for toml in src/cogs/*/cog.toml; do
+            id="$(basename "$(dirname "$toml")")"
+            srcdir=".cargo-target/dist/$id"
+            mkdir -p "dist/$id"
+            for f in manifest.json "cog-$id-arm" "cog-$id-arm64"; do
+              if [ ! -s "$srcdir/$f" ]; then
+                echo "collect: missing $srcdir/$f" >&2
+                fail=1
+                continue
+              fi
+              cp "$srcdir/$f" "dist/$id/$f"
+            done
+            if [ -s "$srcdir/cog-$id-x86_64" ]; then
+              cp "$srcdir/cog-$id-x86_64" "dist/$id/"
+            fi
+          done
+          [ "$fail" -eq 0 ]
+          find dist -type f -print
       - uses: actions/upload-artifact@v4
         with:
           name: cog-binaries
           path: dist/
           if-no-files-found: error
 
-  # Signing + publish is a SEPARATE controlled step (COG-012 Q1): the private
-  # WEAVELOGIC_RELEASE_KEY is NOT placed on this public repo. Release binaries are
-  # signed with `weft-cog-repo sign` from a controlled host and published to the
-  # Sensor Explorer (R2 + registry.json). This workflow only proves the build.
-  # The uploaded dist/ is a flat copy of the binaries. The signer reads
-  # <dist>/<id>/manifest.json plus cog-<id>-arm, -arm64, or -x86_64.
-  # registry.json records each binary signature. That file itself is not signed.
+  # Signing is a separate controlled step (COG-012 Q1). This public workflow
+  # does not have WEAVELOGIC_RELEASE_KEY. A controlled host runs
+  # scripts/release-gate.sh --key <pem>, which signs dist/, verifies, and
+  # checks that registry.json has every cog at arm and arm64 (and x86_64
+  # when that binary was built). The uploaded tree is
+  # <id>/{manifest.json,cog-<id>-arm,cog-<id>-arm64}. registry.json records
+  # each binary signature. That file itself is not signed.

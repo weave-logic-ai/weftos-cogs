@@ -18,8 +18,8 @@ use std::path::Path;
 use std::process::Command;
 mod private;
 use cog_repo::{
-    check_signable, sha256_hex, verify_artifact_unrevoked, weavelogic_key, Artifact, CogEntry,
-    Registry, RevokedKeys, VerifyError, COG_ARCHES, SCHEMA,
+    Artifact, COG_ARCHES, CogEntry, Registry, RevokedKeys, SCHEMA, VerifyError, check_signable,
+    sha256_hex, verify_artifact_unrevoked, weavelogic_key,
 };
 
 type R<T> = Result<T, String>;
@@ -39,6 +39,10 @@ fn usage() -> ! {
          \t\tKey: --key <pkcs8 pem>, or WEAVELOGIC_RELEASE_KEY=<32-byte seed hex>.\n\
          verify  <repo-url|repo-dir>\n\
          \t\tFetches registry.json and verifies sha256 + Ed25519 for every artifact against the pinned key.\n\
+         check-matrix --from <dist-dir> --cogs <src/cogs> <repo-dir>\n\
+         \t\tFails unless registry.json lists every cog under <src/cogs>, each with arm and arm64.\n\
+         \t\tx86_64 is required when <dist-dir>/<id>/cog-<id>-x86_64 exists, and forbidden when it does not.\n\
+         \t\tsign still succeeds when only one cog was signable; this command is the release check.\n\
          install <repo-url|repo-dir> <cog-id> --seed <user@host> [--arch arm|arm64] [--apps-dir <path>]\n\
          \t\tVerifies the chosen cog, then sideloads the binary + manifest to the Seed (default arch arm).\n\
          \t\tx86_64 is a host registry key. Seed install does not sideload it.\n\n\
@@ -63,6 +67,7 @@ fn main() {
     let res = match args.get(1).map(String::as_str) {
         Some("sign") => cmd_sign(&args[2..]),
         Some("verify") => cmd_verify(&args[2..]),
+        Some("check-matrix") => cmd_check_matrix(&args[2..]),
         Some("install") => cmd_install(&args[2..]),
         Some("init") => private::cmd_init(&args[2..]),
         Some("keygen") => private::cmd_keygen(&args[2..]),
@@ -214,7 +219,9 @@ fn sign_tree(from: &str, out: &Path, repo_name: &str, key: &SigningKey) -> R<()>
     }
 
     if cogs.is_empty() {
-        return Err(format!("no signable cogs found under {from} (need <id>/manifest.json and cog-<id>-arm, -arm64, or -x86_64)"));
+        return Err(format!(
+            "no signable cogs found under {from} (need <id>/manifest.json and cog-<id>-arm, -arm64, or -x86_64)"
+        ));
     }
 
     let registry = Registry {
@@ -233,6 +240,128 @@ fn sign_tree(from: &str, out: &Path, repo_name: &str, key: &SigningKey) -> R<()>
         registry.cogs.len()
     );
     Ok(())
+}
+
+/// Release completeness. `sign` returns success when one cog signed and skips a
+/// directory that has no `manifest.json`. This compares the cog directories under
+/// `cogs_dir` (each one contains `cog.toml`) with `registry` and with the files in
+/// `from`. Every expected cog needs `arm` and `arm64`. `x86_64` is required exactly
+/// when `cog-<id>-x86_64` is present.
+fn check_release_matrix(from: &Path, cogs_dir: &Path, registry: &Registry) -> R<()> {
+    let mut expected: Vec<String> = std::fs::read_dir(cogs_dir)
+        .map_err(|e| format!("read {}: {e}", cogs_dir.display()))?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().join("cog.toml").is_file())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    expected.sort();
+    if expected.is_empty() {
+        return Err(format!("no cogs under {}", cogs_dir.display()));
+    }
+
+    let mut problems = Vec::new();
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    for cog in &registry.cogs {
+        *seen.entry(cog.id.clone()).or_insert(0) += 1;
+    }
+    for (id, n) in &seen {
+        if *n > 1 {
+            problems.push(format!("{id}: registry lists it {n} times"));
+        }
+    }
+
+    for id in &expected {
+        let dist = from.join(id);
+        let manifest = dist.join("manifest.json");
+        if !manifest.is_file() {
+            problems.push(format!("{id}: no manifest.json"));
+        } else {
+            match std::fs::read(&manifest) {
+                Ok(bytes) => match serde_json::from_slice::<serde_json::Value>(&bytes) {
+                    Ok(value) => {
+                        let mid = value.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                        if mid != id {
+                            problems.push(format!("{id}: manifest id is {mid:?}"));
+                        }
+                    }
+                    Err(e) => problems.push(format!("{id}: manifest.json: {e}")),
+                },
+                Err(e) => problems.push(format!("{id}: manifest.json: {e}")),
+            }
+        }
+        for arch in ["arm", "arm64"] {
+            let bin = dist.join(format!("cog-{id}-{arch}"));
+            if !bin.is_file() {
+                problems.push(format!("{id}: missing {}", bin.display()));
+            }
+        }
+        let mut want = vec!["arm".to_string(), "arm64".to_string()];
+        if dist.join(format!("cog-{id}-x86_64")).is_file() {
+            want.push("x86_64".to_string());
+        }
+        match registry.cogs.iter().find(|c| &c.id == id) {
+            None => problems.push(format!("{id}: not in registry.json")),
+            Some(entry) => {
+                let have: Vec<String> = entry.artifacts.keys().cloned().collect();
+                if have != want {
+                    problems.push(format!(
+                        "{id}: registry arches [{}], expected [{}]",
+                        have.join(","),
+                        want.join(",")
+                    ));
+                }
+            }
+        }
+    }
+    for id in seen.keys() {
+        if !expected.iter().any(|expected_id| expected_id == id) {
+            problems.push(format!(
+                "{id}: in registry.json but not under {}",
+                cogs_dir.display()
+            ));
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "release matrix ({}):\n{}",
+            problems.len(),
+            problems.join("\n")
+        ))
+    }
+}
+
+fn cmd_check_matrix(args: &[String]) -> R<()> {
+    let from = arg(args, "--from").ok_or("check-matrix needs --from <dist-dir>")?;
+    let cogs = arg(args, "--cogs").ok_or("check-matrix needs --cogs <cog-toml dir>")?;
+    let repo = positional(args).ok_or("check-matrix needs <repo-dir>")?;
+    let registry = load_registry(repo)?;
+    check_release_matrix(Path::new(from), Path::new(cogs), &registry)?;
+    eprintln!(
+        "release matrix matches {} cog(s) in {repo}/registry.json",
+        registry.cogs.len()
+    );
+    Ok(())
+}
+
+/// First argument that is not a flag and not the value of a flag this command takes.
+fn positional(args: &[String]) -> Option<&str> {
+    let mut skip_value = false;
+    for a in args {
+        if skip_value {
+            skip_value = false;
+            continue;
+        }
+        if a == "--from" || a == "--cogs" || a == "--key" || a == "--out" || a == "--repo-name" {
+            skip_value = true;
+            continue;
+        }
+        if !a.starts_with("--") {
+            return Some(a);
+        }
+    }
+    None
 }
 
 /// Date stamp for the registry. `Command` is allowed here (off-device CLI, not a workflow script).
@@ -395,7 +524,9 @@ fn cmd_install(args: &[String]) -> R<()> {
     let seed = arg(args, "--seed").ok_or("install needs --seed <user@host>")?;
     let arch = arg(args, "--arch").unwrap_or("arm");
     if arch != "arm" && arch != "arm64" {
-        return Err(format!("Seed install accepts arm or arm64; {arch} is listed for a Linux host and is not sideloaded"));
+        return Err(format!(
+            "Seed install accepts arm or arm64; {arch} is listed for a Linux host and is not sideloaded"
+        ));
     }
     let apps_dir = arg(args, "--apps-dir").unwrap_or("/var/lib/cognitum/apps");
 
@@ -442,7 +573,9 @@ fn cmd_install(args: &[String]) -> R<()> {
         "ssh",
         &[
             seed,
-            &format!("sudo install -m 0755 /tmp/{agent_bin} {dest}/{agent_bin} && sudo install -m 0644 /tmp/manifest-{cog_id}.json {dest}/manifest.json && rm -f /tmp/{agent_bin} /tmp/manifest-{cog_id}.json"),
+            &format!(
+                "sudo install -m 0755 /tmp/{agent_bin} {dest}/{agent_bin} && sudo install -m 0644 /tmp/manifest-{cog_id}.json {dest}/manifest.json && rm -f /tmp/{agent_bin} /tmp/manifest-{cog_id}.json"
+            ),
         ],
     )?;
     eprintln!(
@@ -528,6 +661,119 @@ mod tests {
         assert_eq!(art.path, "cogs/x86_64/cog-probe-x86_64");
         assert!(d.path().join("repo").join(&art.path).is_file());
         assert!(!reg.cogs[0].artifacts.contains_key("arm"));
+    }
+
+    fn elf(dir: &std::path::Path, id: &str, arch: &str) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join(format!("cog-{id}-{arch}")), b"\x7fELF bytes").unwrap();
+    }
+
+    fn cog_toml(dir: &std::path::Path) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join("cog.toml"), b"[cog]\nid=\"x\"\n").unwrap();
+    }
+
+    fn manifest(dir: &std::path::Path, id: &str) {
+        std::fs::write(
+            dir.join("manifest.json"),
+            format!(
+                r#"{{"binary_size":9,"category":"signal","config":[],"description":"d","difficulty":"medium","id":"{id}","name":"{id}","sha256":"abc","size_kb":1,"version":"0.1.0"}}"#
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn meta_from_manifest_reads_the_sideload_shape() {
+        let raw = br#"{"binary_size":9,"category":"signal","config":[],"description":"a room","difficulty":"medium","id":"bme280","name":"BME280 Environment","sha256":"abc","size_kb":1,"version":"0.1.0"}"#;
+        let value: serde_json::Value = serde_json::from_slice(raw).unwrap();
+        let entry = meta_from_manifest(&value, "bme280");
+        assert_eq!(entry.name, "BME280 Environment");
+        assert_eq!(entry.version, "0.1.0");
+        assert_eq!(entry.category, "signal");
+        assert_eq!(entry.description, "a room");
+        assert!(entry.hardware_requirement.is_empty());
+    }
+
+    #[test]
+    fn sign_keeps_a_partial_tree_and_the_matrix_rejects_it() {
+        let key = SigningKey::from_bytes(&[3; 32]);
+        let root = tempfile::tempdir().unwrap();
+        let from = root.path().join("dist");
+        let cogs = root.path().join("cogs");
+        for id in ["kept", "skipped"] {
+            let dist = from.join(id);
+            elf(&dist, id, "arm");
+            elf(&dist, id, "arm64");
+            cog_toml(&cogs.join(id));
+        }
+        manifest(&from.join("kept"), "kept");
+        sign_tree(from.to_str().unwrap(), &root.path().join("repo"), "t", &key).unwrap();
+        let registry: Registry =
+            serde_json::from_slice(&std::fs::read(root.path().join("repo/registry.json")).unwrap())
+                .unwrap();
+        assert_eq!(registry.cogs.len(), 1);
+        let err = check_release_matrix(&from, &cogs, &registry).unwrap_err();
+        assert!(err.contains("skipped: no manifest.json"), "{err}");
+        assert!(err.contains("skipped: not in registry.json"), "{err}");
+    }
+
+    #[test]
+    fn release_matrix_requires_arm_arm64_and_x86_64_only_when_present() {
+        let root = tempfile::tempdir().unwrap();
+        let from = root.path().join("dist");
+        let cogs = root.path().join("cogs");
+        let dist = from.join("probe");
+        elf(&dist, "probe", "arm");
+        elf(&dist, "probe", "arm64");
+        cog_toml(&cogs.join("probe"));
+        manifest(&dist, "probe");
+        let mut artifacts = BTreeMap::new();
+        artifacts.insert("arm".into(), artifact("arm"));
+        artifacts.insert("arm64".into(), artifact("arm64"));
+        let registry = registry_with("probe", artifacts.clone());
+        check_release_matrix(&from, &cogs, &registry).unwrap();
+
+        let arm_only = registry_with("probe", {
+            let mut one = BTreeMap::new();
+            one.insert("arm".into(), artifact("arm"));
+            one
+        });
+        let err = check_release_matrix(&from, &cogs, &arm_only).unwrap_err();
+        assert!(err.contains("expected [arm,arm64]"), "{err}");
+
+        elf(&dist, "probe", "x86_64");
+        let err = check_release_matrix(&from, &cogs, &registry).unwrap_err();
+        assert!(err.contains("expected [arm,arm64,x86_64]"), "{err}");
+        artifacts.insert("x86_64".into(), artifact("x86_64"));
+        check_release_matrix(&from, &cogs, &registry_with("probe", artifacts)).unwrap();
+    }
+
+    fn artifact(arch: &str) -> Artifact {
+        Artifact {
+            path: format!("cogs/{arch}/cog"),
+            size: 1,
+            sha256: "abc".into(),
+            sig: "00".into(),
+            manifest_path: format!("cogs/{arch}/manifest.json"),
+        }
+    }
+
+    fn registry_with(id: &str, artifacts: BTreeMap<String, Artifact>) -> Registry {
+        Registry {
+            schema: SCHEMA,
+            repo: "t".into(),
+            updated: String::new(),
+            cogs: vec![CogEntry {
+                id: id.into(),
+                name: id.into(),
+                version: "0.1.0".into(),
+                category: String::new(),
+                description: String::new(),
+                hardware_requirement: vec![],
+                artifacts,
+            }],
+        }
     }
 
     #[test]

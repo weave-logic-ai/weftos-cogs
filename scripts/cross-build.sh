@@ -5,8 +5,10 @@
 #   scripts/cross-build.sh              # every cog under src/cogs/
 #   scripts/cross-build.sh <cog-id>...  # named cogs
 #
-# Fails if any stripped binary is > 5 MB, warns if > 1 MB. Stripped binaries land in
-# .cargo-target/dist/<cog-id>/cog-<cog-id>-{arm,arm64} (upstream's artifact names).
+# Fails if any stripped binary is > 5 MB, warns if > 1 MB, and fails if a requested
+# cog is missing manifest.json, cog-<id>-arm, or cog-<id>-arm64. Stripped binaries
+# land in .cargo-target/dist/<cog-id>/ next to manifest.json from scripts/cog_manifest.py
+# (the same writer as scripts/seed-sideload.sh). The manifest hash is the arm binary.
 # Set CROSS_PLATFORM=linux/amd64 to run the image under emulation with upstream's exact
 # apt cross packages; the default is the host's native Docker platform.
 set -euo pipefail
@@ -63,7 +65,11 @@ printf '%-28s %-12s %10s\n' "binary" "arch" "bytes"
 for cog in "${cogs[@]}"; do
   for arch in arm arm64; do
     f="$ROOT/.cargo-target/dist/$cog/cog-$cog-$arch"
-    [ -f "$f" ] || { echo "cross-build: missing $f" >&2; fail=1; continue; }
+    if [ ! -f "$f" ]; then
+      echo "cross-build: missing $f" >&2
+      fail=1
+      continue
+    fi
     size=$(wc -c < "$f" | tr -d ' ')
     printf '%-28s %-12s %10s\n' "cog-$cog" "$arch" "$size"
     if [ "$size" -gt 5242880 ]; then
@@ -72,5 +78,23 @@ for cog in "${cogs[@]}"; do
       echo "cross-build: WARN cog-$cog-$arch is $size bytes (> 1 MB)" >&2
     fi
   done
+  armf="$ROOT/.cargo-target/dist/$cog/cog-$cog-arm"
+  manifest="$ROOT/.cargo-target/dist/$cog/manifest.json"
+  if [ ! -f "$armf" ]; then
+    echo "cross-build: missing $manifest (no arm binary to hash)" >&2
+    fail=1
+    continue
+  fi
+  python3 "$ROOT/scripts/cog_manifest.py" \
+    "$ROOT/src/cogs/$cog/cog.toml" "$armf" "$manifest"
+  manifest_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$manifest")"
+  if [ "$manifest_id" != "$cog" ]; then
+    echo "cross-build: $manifest id is $manifest_id, directory is $cog" >&2
+    fail=1
+  fi
+  if [ ! -s "$manifest" ]; then
+    echo "cross-build: missing $manifest" >&2
+    fail=1
+  fi
 done
 exit "$fail"

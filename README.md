@@ -30,7 +30,7 @@ scripts/repo-gate.sh                # workspace, explorer, wasm, catalog, cog ga
 scripts/cross-build.sh <cog-id>     # armv7 (Seed/Pi Zero 2 W) + aarch64 (Pi 5)
 scripts/cross-build.sh              # all cogs
 ```
-Artifacts land in `.cargo-target/dist/<id>/cog-<id>-{arm,arm64}` (stripped).
+Artifacts land in `.cargo-target/dist/<id>/`: stripped `cog-<id>-arm`, `cog-<id>-arm64`, and `manifest.json` from `scripts/cog_manifest.py`.
 
 ## Install
 

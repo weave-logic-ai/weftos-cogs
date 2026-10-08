@@ -184,13 +184,23 @@ There are four different keys. Do not mix them up.
 
 ### WeaveLogic cog key
 
-`.github/workflows/build.yml` cross-builds unsigned ARM binaries and uploads a flat `dist/`. It does not store `WEAVELOGIC_RELEASE_KEY`. A separate controlled host loads the PKCS#8 PEM or the 64-hex seed and runs:
+`.github/workflows/build.yml` cross-builds unsigned ARM binaries. It does not store `WEAVELOGIC_RELEASE_KEY`. `scripts/cross-build.sh` writes `.cargo-target/dist/<id>/cog-<id>-arm`, `cog-<id>-arm64`, and `manifest.json`. The manifest comes from `scripts/cog_manifest.py`, the same writer `scripts/seed-sideload.sh` uses, and its `sha256` is the arm binary. The workflow uploads that directory tree. A cog missing the manifest or either required binary fails the build.
+
+A separate controlled host loads the PKCS#8 PEM or the 64-hex seed and runs:
 
 ```sh
-weft-cog-repo sign --from <dist> --out <repo> --key <weavelogic-cog-release.pem>
+scripts/release-gate.sh --key /secure/weavelogic-cog-release.pem
 ```
 
-The command refuses a key whose public half is not `WEAVELOGIC_PUBKEY_HEX`. Each accepted binary is copied with its size, SHA-256, and Ed25519 signature. `registry.json` records those fields. The registry file itself is not signed. The input must be `<id>/manifest.json` plus `cog-<id>-arm`, `cog-<id>-arm64`, or `cog-<id>-x86_64`. `scripts/cross-build.sh` writes the binaries under `.cargo-target/dist/<id>/` and does not write `manifest.json`, so that directory is not yet a signable tree. The workflow's uploaded `dist/` is a flat copy of the binaries.
+That runs the cross-build, then:
+
+```sh
+weft-cog-repo sign --from .cargo-target/dist --out release/repo --key <weavelogic-cog-release.pem>
+weft-cog-repo verify release/repo
+weft-cog-repo check-matrix --from .cargo-target/dist --cogs src/cogs release/repo
+```
+
+`sign` refuses a key whose public half is not `WEAVELOGIC_PUBKEY_HEX`. Each accepted binary is copied with its size, SHA-256, and Ed25519 signature. `registry.json` records those fields. The registry file itself is not signed. `sign` still returns success when at least one directory was signable, and it skips a directory with no `manifest.json`. `check-matrix` fails unless every cog under `src/cogs` is in the registry with `arm` and `arm64`, plus `x86_64` when `cog-<id>-x86_64` is in the dist directory.
 
 The WeftOS updater key is a different key. Both tools currently read an environment variable named `WEAVELOGIC_RELEASE_KEY`. Do not use one key for the other. If the private key for the compiled public key is lost, generate a new one outside the repository and change `WEAVELOGIC_PUBKEY_HEX` in a reviewed commit before the release consumers will verify. Those consumers have to receive the new public key before, or in the same upgrade as, the new signatures.
 

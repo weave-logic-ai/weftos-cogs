@@ -1,5 +1,6 @@
 /target
 /.cargo-target
+/release
 **/target
 *.sig
 .DS_Store
