@@ -1,6 +1,6 @@
 {
   "name": "sensor-explorer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "WeftOS Sensor Explorer \u2014 browsable, contributable hardware catalog with an MCP agent surface, on Cloudflare Workers + D1.",
   "type": "module",

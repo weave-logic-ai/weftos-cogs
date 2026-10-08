@@ -1,0 +1,22 @@
+[workspace]
+
+[package]
+name = "cog-bme280"
+version = "0.1.0"
+edition = "2021"
+description = "Bosch BME280 temperature, humidity, and pressure over I2C. One forced sample. Fail honest when the chip is absent."
+publish = false
+
+[[bin]]
+name = "cog-bme280"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

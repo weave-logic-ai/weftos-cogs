@@ -7,6 +7,7 @@ import { handleRpc, type Env } from "./mcp";
 import { catalogRelease, expandedSearch, searchCogs } from "./search";
 import { activityFor, pulse, recordEvent, recordLook, type Activity } from "./activity";
 import { guideFor } from "./guides";
+import { mcpGuidePage } from "./mcp-guide";
 
 type Scope = "read" | "contribute" | "admin";
 
@@ -128,6 +129,8 @@ app.post("/mcp", async (c) => {
   const res = await handleRpc(body, c.env, scope);
   return res ? c.json(res) : new Response(null, { status: 204 }); // 204 for notifications
 });
+
+app.get("/mcp", (c) => c.html(mcpGuidePage(c.env.EXPLORER_NAME || "WeftOS Sensor Explorer")));
 
 // ---- public read REST ----
 app.get("/api/tree", async (c) => {
@@ -778,7 +781,7 @@ table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft);color:var(-
 <header>
   <div class=brand>
     <h1><span class=mark aria-hidden=true></span>${name}</h1>
-    <p class=sub>A browsable, contributable hardware catalog with an MCP agent surface. <a href="/api/facets">facets</a> &middot; <a href="/api/catalog.json">catalog export</a> &middot; <a href="/catalog.json">canonical catalog</a> &middot; <a href="/catalog-release.json">catalog artifact</a> &middot; <a href="/api/catalog/release">catalog release</a> &middot; <code>POST /mcp</code></p>
+    <p class=sub>A browsable, contributable hardware catalog with an MCP agent surface. <a href="/mcp">MCP guide</a> &middot; <a href="/api/facets">facets</a> &middot; <a href="/api/catalog.json">catalog export</a> &middot; <a href="/catalog.json">canonical catalog</a> &middot; <a href="/catalog-release.json">catalog artifact</a> &middot; <a href="/api/catalog/release">catalog release</a> &middot; <code>POST /mcp</code></p>
     <p class=sub id=catalogrel></p>
   </div>
   <a class=seedbanner href="https://cognitum.one/a/9PUnUY" target=_blank rel=noopener>
@@ -819,6 +822,7 @@ table.spec td{padding:6px 0;border-bottom:1px solid var(--line-soft);color:var(-
           <div class=homeacts>
             <a class=ext href="https://cognitum.one/a/9PUnUY" target=_blank rel=noopener>Cognitum Seed</a>
             <a class=ext href="https://weftos.weavelogic.ai" target=_blank rel=noopener>WeftOS</a>
+            <a class=ext href="/mcp">Add a part over MCP</a>
           </div>
         </div>
         <div class=feature>

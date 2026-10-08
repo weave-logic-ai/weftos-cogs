@@ -1,0 +1,57 @@
+[cog]
+id = "bme280"
+name = "BME280 Environment"
+version = "0.1.0"
+category = "signal"
+description = "Reads a Bosch BME280 (catalog id bme280) over I2C at 0x76 or 0x77. Reports temperature, relative humidity, and barometric pressure from one forced sample. Chip id 0xD0 must be 0x60. A BMP280 or BME680 is refused."
+binary = "cog-bme280-arm"
+hardware_requirement = ["pi-zero-2w", "v0-appliance"]
+
+[config]
+
+[config.interval]
+type = "integer"
+label = "Report interval"
+description = "Seconds between samples while running continuously"
+default = 5
+min = 1
+max = 60
+unit = "seconds"
+cli_arg = "--interval"
+
+[config.i2c_bus]
+type = "integer"
+label = "I2C bus"
+description = "Linux I2C bus number (/dev/i2c-N). 1 is the GPIO header bus."
+default = 1
+min = 0
+max = 9
+cli_arg = "--i2c-bus"
+advanced = true
+
+[config.i2c_addr]
+type = "integer"
+label = "I2C address"
+description = "7-bit address. 118 (0x76) when SDO is grounded, 119 (0x77) when SDO is high."
+default = 118
+min = 118
+max = 119
+cli_arg = "--i2c-addr"
+advanced = true
+
+[config.simulate]
+type = "boolean"
+label = "Simulate"
+description = "Decode a fixed synthetic register image through the same compensation as the chip. The line is marked SYNTHETIC."
+default = false
+cli_arg = "--simulate"
+advanced = true
+
+[api]
+bind_port = 8054
+bind_loopback_only = true
+
+[console]
+allowed_commands = ["--once", "--once --simulate", "--help"]
+max_runtime_secs = 15
+output_limit_bytes = 65536

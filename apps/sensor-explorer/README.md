@@ -47,7 +47,7 @@ Local dev: `npm run db:migrate:local && npm run seed:gen && npm run db:seed:loca
 
 ## Agent surface (MCP)
 
-Point a harness at `POST https://<your-worker>/mcp` with header
+Open `GET /mcp` for the guide (how to connect, what the tools do, and how to propose a part). Point a harness at `POST https://<your-worker>/mcp` with header
 `Authorization: Bearer <BOOTSTRAP_API_KEY or a D1 api_keys key>`. Standard MCP JSON-RPC
 (`initialize`, `tools/list`, `tools/call`). Tools:
 
